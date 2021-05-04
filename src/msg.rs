@@ -16,7 +16,6 @@ pub enum StakingHandleMsg {
     Redeem {
         amount: Uint128,
     },
-    EmergencyRedeem {},
 
     // Registered commands
     Receive {
@@ -58,7 +57,6 @@ pub enum StakingHandleAnswer {
     ChangeAdmin { status: StakingResponseStatus },
     SetDeadline { status: StakingResponseStatus },
     ClaimRewardPool { status: StakingResponseStatus },
-    EmergencyRedeem { status: StakingResponseStatus },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

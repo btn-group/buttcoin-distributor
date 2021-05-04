@@ -82,7 +82,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     let config: Config = TypedStoreMut::attach(&mut deps.storage).load(CONFIG_KEY)?;
     if config.stopped {
         return match msg {
-            // StakingHandleMsg::EmergencyRedeem {} => emergency_redeem(deps, env),
             StakingHandleMsg::ResumeContract {} => resume_contract(deps, env),
             _ => Err(StdError::generic_err(
                 "this contract is stopped and this action is not allowed",
@@ -212,54 +211,6 @@ fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
         data: None,
     })
 }
-
-// Withdraw without caring about rewards for users. EMERGENCY ONLY.
-// This could be refactored a bit I reckon
-// fn emergency_redeem<S: Storage, A: Api, Q: Querier>(
-//     deps: &mut Extern<S, A, Q>,
-//     env: Env,
-// ) -> StdResult<HandleResponse> {
-//     let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
-//     let mut user: UserInfo = TypedStoreMut::attach(&mut deps.storage)
-//         .load(env.message.sender.0.as_bytes())
-//         .unwrap_or(UserInfo { locked: 0, debt: 0 });
-
-//     let mut messages = vec![];
-//     if user.locked > 0 {
-//         // Withdraw amount from farm contract to this contract
-//         messages.push(
-//             WasmMsg::Execute {
-//                 contract_addr: config.farm_contract.address,
-//                 callback_code_hash: config.farm_contract.contract_hash,
-//                 msg: to_binary(&StakingHandleMsg::Redeem {
-//                     amount: Some(Uint128(user.locked)),
-//                 })?,
-//                 send: vec![],
-//             }
-//             .into(),
-//         );
-//         // Transfer from this contract to the user
-//         messages.push(secret_toolkit::snip20::transfer_msg(
-//             env.message.sender.clone(),
-//             Uint128(user.locked),
-//             None,
-//             RESPONSE_BLOCK_SIZE,
-//             config.token.contract_hash,
-//             config.token.address,
-//         )?);
-//     }
-
-//     user = UserInfo { locked: 0, debt: 0 };
-//     TypedStoreMut::attach(&mut deps.storage).store(env.message.sender.0.as_bytes(), &user)?;
-
-//     Ok(HandleResponse {
-//         messages,
-//         log: vec![],
-//         data: Some(to_binary(&StakingHandleAnswer::EmergencyRedeem {
-//             status: Success,
-//         })?),
-//     })
-// }
 
 fn enforce_admin(config: Config, env: Env) -> StdResult<()> {
     if config.admin != env.message.sender {
