@@ -16,10 +16,6 @@ pub enum StakingHandleMsg {
     Redeem {
         amount: Uint128,
     },
-    CreateViewingKey {
-        entropy: String,
-        padding: Option<String>,
-    },
     SetViewingKey {
         key: String,
         padding: Option<String>,
@@ -61,7 +57,6 @@ pub struct StakingInitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum StakingHandleAnswer {
     Redeem { status: StakingResponseStatus },
-    CreateViewingKey { key: ViewingKey },
     SetViewingKey { status: StakingResponseStatus },
     StopContract { status: StakingResponseStatus },
     ResumeContract { status: StakingResponseStatus },
