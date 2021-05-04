@@ -12,7 +12,5 @@ pub struct Config {
     pub admin: HumanAddr,
     // Need this for contract to view its own balance of SNIP-20 tokens
     pub viewing_key: String,
-    // Need this to create random viewing keys
-    pub prng_seed: Vec<u8>,
     pub stopped: bool,
 }

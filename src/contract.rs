@@ -1,4 +1,4 @@
-// APPLY performance_fee of 5% (500/10_000) when calculating fees etc
+// APPLY performance_fee of 3% (300/10_000) when calculating fees etc
 // Do we need governanceRecoverUnsupported in Secret Network?
 // Can you send unsupported coins in Secret Network or does the regeister stuff in init prevent that?
 use crate::msg::{
@@ -9,7 +9,7 @@ use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
-use secret_toolkit::crypto::sha_256;
+
 use secret_toolkit::snip20;
 use secret_toolkit::storage::{TypedStore, TypedStoreMut};
 use secret_toolkit::utils::{pad_handle_result, pad_query_result};
@@ -22,11 +22,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: StakingInitMsg,
 ) -> StdResult<InitResponse> {
-    // Initialize state
-    // prng stands for pseudorandom number generator
-    // The seed is required for the algorithm of generating random numbers
-    // We are using to generate viewing keys for users
-    let prng_seed_hashed = sha_256(&msg.prng_seed.0);
     let mut config_store = TypedStoreMut::attach(&mut deps.storage);
     config_store.store(
         CONFIG_KEY,
@@ -36,7 +31,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             shares_token: msg.shares_token.clone(),
             admin: env.message.sender.clone(),
             viewing_key: msg.viewing_key.clone(),
-            prng_seed: prng_seed_hashed.to_vec(),
             stopped: false,
         },
     )?;
