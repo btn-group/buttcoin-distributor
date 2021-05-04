@@ -67,7 +67,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     let response = match msg {
         StakingQueryMsg::ContractStatus {} => query_contract_status(deps),
-        StakingQueryMsg::RewardToken {} => query_token(deps),
+        StakingQueryMsg::Token {} => query_token(deps),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
 
@@ -285,7 +285,7 @@ fn query_contract_status<S: Storage, A: Api, Q: Querier>(
 fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Binary> {
     let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
 
-    to_binary(&StakingQueryAnswer::RewardToken {
+    to_binary(&StakingQueryAnswer::Token {
         token: config.token,
     })
 }

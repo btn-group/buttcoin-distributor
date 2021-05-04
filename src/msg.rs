@@ -92,7 +92,7 @@ pub enum StakingReceiveAnswer {
 pub enum StakingQueryMsg {
     TokenInfo {},
     ContractStatus {},
-    RewardToken {},
+    Token {},
     IncentivizedToken {},
 
     // Authenticated
@@ -135,7 +135,7 @@ pub enum StakingQueryAnswer {
     ContractStatus {
         stopped: bool,
     },
-    RewardToken {
+    Token {
         token: SecretContract,
     },
     IncentivizedToken {
