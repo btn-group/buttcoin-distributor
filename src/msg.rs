@@ -1,6 +1,5 @@
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 
-use crate::viewing_key::ViewingKey;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -91,7 +90,6 @@ pub enum StakingQueryMsg {
     TokenInfo {},
     ContractStatus {},
     Token {},
-    IncentivizedToken {},
 
     // Authenticated
     Rewards {
@@ -105,44 +103,14 @@ pub enum StakingQueryMsg {
     },
 }
 
-impl StakingQueryMsg {
-    pub fn get_validation_params(&self) -> (&HumanAddr, ViewingKey) {
-        match self {
-            StakingQueryMsg::Rewards { address, key, .. } => (address, ViewingKey(key.clone())),
-            StakingQueryMsg::Balance { address, key } => (address, ViewingKey(key.clone())),
-            _ => panic!("This should never happen"),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum StakingQueryAnswer {
-    TokenInfo {
-        name: String,
-        symbol: String,
-        decimals: u8,
-        total_supply: Option<Uint128>,
-    },
-    Rewards {
-        rewards: Uint128,
-    },
-    Balance {
-        amount: Uint128,
-    },
-    ContractStatus {
-        stopped: bool,
-    },
-    Token {
-        token: SecretContract,
-    },
-    IncentivizedToken {
-        token: SecretContract,
-    },
-
-    QueryError {
-        msg: String,
-    },
+    Rewards { rewards: Uint128 },
+    Balance { amount: Uint128 },
+    ContractStatus { stopped: bool },
+    Token { token: SecretContract },
+    QueryError { msg: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
