@@ -11,7 +11,7 @@ pub struct SecretContract {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingHandleMsg {
+pub enum HandleMsg {
     Redeem {
         amount: Uint128,
     },
@@ -27,63 +27,33 @@ pub enum StakingHandleMsg {
     // Admin commands
     StopContract {},
     ResumeContract {},
-
-    // Master callbacks
-    NotifyAllocation {
-        amount: Uint128,
-        hook: Option<Binary>,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StakingInitMsg {
+pub struct InitMsg {
     pub farm_contract: SecretContract,
-    pub inc_token: SecretContract,
+    pub token: SecretContract,
     pub shares_token: SecretContract,
     pub viewing_key: String,
-    pub prng_seed: Binary,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingHandleAnswer {
-    Redeem { status: StakingResponseStatus },
-    StopContract { status: StakingResponseStatus },
-    ResumeContract { status: StakingResponseStatus },
-    SetDeadline { status: StakingResponseStatus },
-    ClaimRewardPool { status: StakingResponseStatus },
+pub enum HandleAnswer {
+    Redeem { status: ResponseStatus },
+    StopContract { status: ResponseStatus },
+    ResumeContract { status: ResponseStatus },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingReceiveMsg {
+pub enum ReceiveMsg {
     Deposit {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingHookMsg {
-    Deposit {
-        from: HumanAddr,
-        amount: Uint128,
-    },
-    Redeem {
-        to: HumanAddr,
-        amount: Option<Uint128>,
-    },
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum StakingReceiveAnswer {
-    Deposit { status: StakingResponseStatus },
-    DepositRewards { status: StakingResponseStatus },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum StakingQueryMsg {
-    TokenInfo {},
+pub enum QueryMsg {
     ContractStatus {},
     Token {},
 
@@ -101,17 +71,15 @@ pub enum StakingQueryMsg {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingQueryAnswer {
+pub enum QueryAnswer {
     Rewards { rewards: Uint128 },
     Balance { amount: Uint128 },
     ContractStatus { stopped: bool },
     Token { token: SecretContract },
-    QueryError { msg: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum StakingResponseStatus {
+pub enum ResponseStatus {
     Success,
-    Failure,
 }

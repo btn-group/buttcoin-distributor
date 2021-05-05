@@ -1,10 +1,8 @@
 // APPLY performance_fee of 3% (300/10_000) when calculating fees etc
 // Do we need governanceRecoverUnsupported in Secret Network?
 // Can you send unsupported coins in Secret Network or does the regeister stuff in init prevent that?
-use crate::msg::{
-    StakingHandleAnswer, StakingHandleMsg, StakingInitMsg, StakingQueryAnswer, StakingQueryMsg,
-    StakingReceiveMsg, StakingResponseStatus::Success,
-};
+use crate::msg::ResponseStatus::Success;
+use crate::msg::{HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg, ReceiveMsg};
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
@@ -20,14 +18,14 @@ use crate::state::Config;
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: StakingInitMsg,
+    msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let mut config_store = TypedStoreMut::attach(&mut deps.storage);
     config_store.store(
         CONFIG_KEY,
         &Config {
             farm_contract: msg.farm_contract,
-            token: msg.inc_token.clone(),
+            token: msg.token.clone(),
             shares_token: msg.shares_token.clone(),
             admin: env.message.sender.clone(),
             viewing_key: msg.viewing_key.clone(),
@@ -43,15 +41,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             env.contract_code_hash,
             None,
             1,
-            msg.inc_token.contract_hash.clone(),
-            msg.inc_token.address.clone(),
+            msg.token.contract_hash.clone(),
+            msg.token.address.clone(),
         )?,
         snip20::set_viewing_key_msg(
             msg.viewing_key,
             None,
             RESPONSE_BLOCK_SIZE,
-            msg.inc_token.contract_hash,
-            msg.inc_token.address,
+            msg.token.contract_hash,
+            msg.token.address,
         )?,
     ];
 
@@ -63,11 +61,11 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    msg: StakingQueryMsg,
+    msg: QueryMsg,
 ) -> StdResult<Binary> {
     let response = match msg {
-        StakingQueryMsg::ContractStatus {} => query_contract_status(deps),
-        StakingQueryMsg::Token {} => query_token(deps),
+        QueryMsg::ContractStatus {} => query_contract_status(deps),
+        QueryMsg::Token {} => query_token(deps),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
 
@@ -77,12 +75,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: StakingHandleMsg,
+    msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     let config: Config = TypedStoreMut::attach(&mut deps.storage).load(CONFIG_KEY)?;
     if config.stopped {
         return match msg {
-            StakingHandleMsg::ResumeContract {} => resume_contract(deps, env),
+            HandleMsg::ResumeContract {} => resume_contract(deps, env),
             _ => Err(StdError::generic_err(
                 "this contract is stopped and this action is not allowed",
             )),
@@ -90,11 +88,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 
     let response = match msg {
-        StakingHandleMsg::Receive {
+        HandleMsg::Receive {
             from, amount, msg, ..
         } => receive(deps, env, from, amount.u128(), msg),
-        StakingHandleMsg::Redeem { amount } => withdraw(deps, env, amount),
-        StakingHandleMsg::StopContract {} => stop_contract(deps, env),
+        HandleMsg::Redeem { amount } => withdraw(deps, env, amount),
+        HandleMsg::StopContract {} => stop_contract(deps, env),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
 
@@ -158,11 +156,11 @@ fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
     messages.push(secret_toolkit::snip20::send_msg(
         config.farm_contract.address.clone(),
         Uint128(balance_of_this_contract),
-        Some(to_binary(&StakingHandleMsg::Receive {
+        Some(to_binary(&HandleMsg::Receive {
             sender: env.contract.address.clone(),
             from: env.contract.address.clone(),
             amount: Uint128(balance_of_this_contract),
-            msg: to_binary(&StakingReceiveMsg::Deposit {})?,
+            msg: to_binary(&ReceiveMsg::Deposit {})?,
         })?),
         None,
         RESPONSE_BLOCK_SIZE,
@@ -205,7 +203,7 @@ fn query_contract_status<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
 
-    to_binary(&StakingQueryAnswer::ContractStatus {
+    to_binary(&QueryAnswer::ContractStatus {
         stopped: config.stopped,
     })
 }
@@ -213,7 +211,7 @@ fn query_contract_status<S: Storage, A: Api, Q: Querier>(
 fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Binary> {
     let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
 
-    to_binary(&StakingQueryAnswer::Token {
+    to_binary(&QueryAnswer::Token {
         token: config.token,
     })
 }
@@ -225,10 +223,10 @@ fn receive<S: Storage, A: Api, Q: Querier>(
     amount: u128,
     msg: Binary,
 ) -> StdResult<HandleResponse> {
-    let msg: StakingReceiveMsg = from_binary(&msg)?;
+    let msg: ReceiveMsg = from_binary(&msg)?;
 
     match msg {
-        StakingReceiveMsg::Deposit {} => deposit(deps, env, from, amount),
+        ReceiveMsg::Deposit {} => deposit(deps, env, from, amount),
     }
 }
 
@@ -248,7 +246,7 @@ fn resume_contract<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&StakingHandleAnswer::ResumeContract {
+        data: Some(to_binary(&HandleAnswer::ResumeContract {
             status: Success,
         })?),
     })
@@ -269,9 +267,7 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&StakingHandleAnswer::StopContract {
-            status: Success,
-        })?),
+        data: Some(to_binary(&HandleAnswer::StopContract { status: Success })?),
     })
 }
 
@@ -282,7 +278,7 @@ fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdResu
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.farm_contract.address.clone(),
             callback_code_hash: config.farm_contract.contract_hash.clone(),
-            msg: to_binary(&StakingQueryMsg::Rewards {
+            msg: to_binary(&QueryMsg::Rewards {
                 address: env.contract.address.clone(),
                 key: config.viewing_key.clone(),
                 height: env.block.height,
@@ -306,7 +302,7 @@ fn unclaimed_rewards<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdRe
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.farm_contract.address.clone(),
             callback_code_hash: config.farm_contract.contract_hash.clone(),
-            msg: to_binary(&StakingQueryMsg::Rewards {
+            msg: to_binary(&QueryMsg::Rewards {
                 address: env.contract.address.clone(),
                 key: config.viewing_key.clone(),
                 height: env.block.height,
@@ -337,7 +333,7 @@ fn total_locked_in_farm_contract<Q: Querier>(
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.farm_contract.address,
             callback_code_hash: config.farm_contract.contract_hash,
-            msg: to_binary(&StakingQueryMsg::Balance {
+            msg: to_binary(&QueryMsg::Balance {
                 address: env.contract.address.clone(),
                 key: config.viewing_key.clone(),
             })?,
@@ -395,7 +391,7 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
         WasmMsg::Execute {
             contract_addr: config.farm_contract.address.clone(),
             callback_code_hash: config.farm_contract.contract_hash.clone(),
-            msg: to_binary(&StakingHandleMsg::Redeem {
+            msg: to_binary(&HandleMsg::Redeem {
                 amount: Uint128(amount_to_withdraw_from_farm_contract),
             })?,
             send: vec![],
@@ -428,6 +424,353 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![],
-        data: Some(to_binary(&StakingHandleAnswer::Redeem { status: Success })?),
+        data: Some(to_binary(&HandleAnswer::Redeem { status: Success })?),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    // use super::*;
+    // use crate::msg::ResponseStatus;
+    // use cosmwasm_std::testing::*;
+    // use cosmwasm_std::{from_binary, BlockInfo, ContractInfo, MessageInfo, QueryResponse, WasmMsg};
+    // use std::any::Any;
+
+    // // Helper functions
+
+    // fn init_helper() -> (
+    //     StdResult<InitResponse>,
+    //     Extern<MockStorage, MockApi, MockQuerier>,
+    // ) {
+    //     let mut deps = mock_dependencies(20, &[]);
+    //     let env = mock_env("instantiator", &[]);
+
+    //     let init_msg = InitMsg {
+    //         name: "sec-sec".to_string(),
+    //         admin: Some(HumanAddr("admin".to_string())),
+    //         symbol: "SECSEC".to_string(),
+    //         decimals: 8,
+    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
+    //     };
+
+    //     (init(&mut deps, env, init_msg), deps)
+    // }
+
+    // fn extract_error_msg<T: Any>(error: StdResult<T>) -> String {
+    //     match error {
+    //         Ok(response) => {
+    //             let bin_err = (&response as &dyn Any)
+    //                 .downcast_ref::<QueryResponse>()
+    //                 .expect("An error was expected, but no error could be extracted");
+    //             match from_binary(bin_err).unwrap() {
+    //                 QueryAnswer::ViewingKeyError { msg } => msg,
+    //                 _ => panic!("Unexpected query answer"),
+    //             }
+    //         }
+    //         Err(err) => match err {
+    //             StdError::GenericErr { msg, .. } => msg,
+    //             _ => panic!("Unexpected result from init"),
+    //         },
+    //     }
+    // }
+
+    // fn ensure_success(handle_result: HandleResponse) -> bool {
+    //     let handle_result: HandleAnswer = from_binary(&handle_result.data.unwrap()).unwrap();
+
+    //     match handle_result {
+    //         HandleAnswer::Transfer { status }
+    //         | HandleAnswer::Send { status }
+    //         | HandleAnswer::Burn { status }
+    //         | HandleAnswer::RegisterReceive { status }
+    //         | HandleAnswer::SetViewingKey { status }
+    //         | HandleAnswer::TransferFrom { status }
+    //         | HandleAnswer::SendFrom { status }
+    //         | HandleAnswer::BurnFrom { status }
+    //         | HandleAnswer::Mint { status }
+    //         | HandleAnswer::SetMinters { status } => {
+    //             matches!(status, ResponseStatus::Success { .. })
+    //         }
+    //         _ => panic!("HandleAnswer not supported for success extraction"),
+    //     }
+    // }
+
+    // // Init tests
+
+    // #[test]
+    // fn test_init_sanity() {
+    //     let (init_result, deps) = init_helper();
+    //     assert_eq!(init_result.unwrap(), InitResponse::default());
+
+    //     let config = ReadonlyConfig::from_storage(&deps.storage);
+    //     let constants = config.constants().unwrap();
+    //     assert_eq!(config.total_supply(), 0);
+    //     assert_eq!(constants.name, "sec-sec".to_string());
+    //     assert_eq!(constants.admin, HumanAddr("admin".to_string()));
+    //     assert_eq!(constants.symbol, "SECSEC".to_string());
+    //     assert_eq!(constants.decimals, 8);
+    //     assert_eq!(
+    //         constants.prng_seed,
+    //         sha_256("lolz fun yay".to_owned().as_bytes())
+    //     );
+    // }
+
+    // // Handle tests
+
+    // #[test]
+    // fn test_handle_transfer() {
+    //     // Initialize
+    //     let (init_result, mut deps) = init_helper();
+    //     assert!(
+    //         init_result.is_ok(),
+    //         "Init failed: {}",
+    //         init_result.err().unwrap()
+    //     );
+
+    //     // Set bob as minter
+    //     let handle_msg = HandleMsg::SetMinters {
+    //         minters: vec![HumanAddr("bob".to_string())],
+    //         padding: None,
+    //     };
+    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
+
+    //     // Try mint to bob
+    //     let mint_amount: u128 = 5000;
+    //     let handle_msg = HandleMsg::Mint {
+    //         recipient: HumanAddr("bob".to_string()),
+    //         amount: Uint128(mint_amount),
+    //         padding: None,
+    //     };
+    //     let _handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
+
+    //     // Transfer from bob to alice
+    //     let handle_msg = HandleMsg::Transfer {
+    //         recipient: HumanAddr("alice".to_string()),
+    //         amount: Uint128(1000),
+    //         padding: None,
+    //     };
+    //     let handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
+    //     let result = handle_result.unwrap();
+    //     assert!(ensure_success(result));
+
+    //     // Check bob and alice's balances are correct after transfer
+    //     let bob_canonical = deps
+    //         .api
+    //         .canonical_address(&HumanAddr("bob".to_string()))
+    //         .unwrap();
+    //     let alice_canonical = deps
+    //         .api
+    //         .canonical_address(&HumanAddr("alice".to_string()))
+    //         .unwrap();
+    //     let balances = ReadonlyBalances::from_storage(&deps.storage);
+    //     assert_eq!(5000 - 1000, balances.account_amount(&bob_canonical));
+    //     assert_eq!(1000, balances.account_amount(&alice_canonical));
+
+    //     // Try to transfer more than alice's balance to bob
+    //     let handle_msg = HandleMsg::Transfer {
+    //         recipient: HumanAddr("alice".to_string()),
+    //         amount: Uint128(10000),
+    //         padding: None,
+    //     };
+    //     let handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
+    //     let error = extract_error_msg(handle_result);
+    //     assert!(error.contains("insufficient funds"));
+    // }
+
+    // #[test]
+    // fn test_handle_admin_commands() {
+    //     let admin_err = "Admin commands can only be run from admin address".to_string();
+    //     // Init
+    //     let (init_result, mut deps) = init_helper();
+    //     assert!(
+    //         init_result.is_ok(),
+    //         "Init failed: {}",
+    //         init_result.err().unwrap()
+    //     );
+
+    //     // Set minters
+    //     let mint_msg = HandleMsg::SetMinters {
+    //         minters: vec![HumanAddr("not_admin".to_string())],
+    //         padding: None,
+    //     };
+    //     let handle_result = handle(&mut deps, mock_env("not_admin", &[]), mint_msg);
+    //     let error = extract_error_msg(handle_result);
+    //     assert!(error.contains(&admin_err.clone()));
+    // }
+
+    // // Query tests
+
+    // #[test]
+    // fn test_authenticated_queries() {
+    //     // Init
+    //     let (init_result, mut deps) = init_helper();
+    //     assert!(
+    //         init_result.is_ok(),
+    //         "Init failed: {}",
+    //         init_result.err().unwrap()
+    //     );
+
+    //     // Set minters as admin
+    //     let handle_msg = HandleMsg::SetMinters {
+    //         minters: vec![HumanAddr("admin".to_string())],
+    //         padding: None,
+    //     };
+    //     let handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
+    //     assert!(ensure_success(handle_result.unwrap()));
+
+    //     // Mint tokens to giannis
+    //     let mint_amount: u128 = 5000;
+    //     let handle_msg = HandleMsg::Mint {
+    //         recipient: HumanAddr("giannis".to_string()),
+    //         amount: Uint128(mint_amount),
+    //         padding: None,
+    //     };
+    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
+
+    //     let no_vk_yet_query_msg = QueryMsg::Balance {
+    //         address: HumanAddr("giannis".to_string()),
+    //         key: "no_vk_yet".to_string(),
+    //     };
+    //     let query_result = query(&deps, no_vk_yet_query_msg);
+    //     let error = extract_error_msg(query_result);
+    //     assert_eq!(
+    //         error,
+    //         "Wrong viewing key for this address or viewing key not set".to_string()
+    //     );
+
+    //     let create_vk_msg = HandleMsg::CreateViewingKey {
+    //         entropy: "34".to_string(),
+    //         padding: None,
+    //     };
+    //     let handle_response = handle(&mut deps, mock_env("giannis", &[]), create_vk_msg).unwrap();
+    //     let vk = match from_binary(&handle_response.data.unwrap()).unwrap() {
+    //         HandleAnswer::CreateViewingKey { key } => key,
+    //         _ => panic!("Unexpected result from handle"),
+    //     };
+
+    //     let query_balance_msg = QueryMsg::Balance {
+    //         address: HumanAddr("giannis".to_string()),
+    //         key: vk.0,
+    //     };
+
+    //     let query_response = query(&deps, query_balance_msg).unwrap();
+    //     let balance = match from_binary(&query_response).unwrap() {
+    //         QueryAnswer::Balance { amount } => amount,
+    //         _ => panic!("Unexpected result from query"),
+    //     };
+    //     assert_eq!(balance, Uint128(5000));
+
+    //     let wrong_vk_query_msg = QueryMsg::Balance {
+    //         address: HumanAddr("giannis".to_string()),
+    //         key: "wrong_vk".to_string(),
+    //     };
+    //     let query_result = query(&deps, wrong_vk_query_msg);
+    //     let error = extract_error_msg(query_result);
+    //     assert_eq!(
+    //         error,
+    //         "Wrong viewing key for this address or viewing key not set".to_string()
+    //     );
+    // }
+
+    // #[test]
+    // fn test_query_admin() {
+    //     let init_name = "sec-sec".to_string();
+    //     let init_admin = HumanAddr("admin".to_string());
+    //     let init_symbol = "SECSEC".to_string();
+    //     let init_decimals = 8;
+    //     let mut deps = mock_dependencies(20, &[]);
+    //     let env = mock_env("instantiator", &[]);
+    //     let init_msg = InitMsg {
+    //         name: init_name.clone(),
+    //         admin: Some(init_admin.clone()),
+    //         symbol: init_symbol.clone(),
+    //         decimals: init_decimals.clone(),
+    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
+    //     };
+    //     let init_result = init(&mut deps, env, init_msg);
+    //     assert!(
+    //         init_result.is_ok(),
+    //         "Init failed: {}",
+    //         init_result.err().unwrap()
+    //     );
+
+    //     let query_msg = QueryMsg::Admin {};
+    //     let query_result = query(&deps, query_msg);
+    //     assert!(
+    //         query_result.is_ok(),
+    //         "Init failed: {}",
+    //         query_result.err().unwrap()
+    //     );
+    //     let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
+    //     match query_answer {
+    //         QueryAnswer::Admin { address } => {
+    //             assert_eq!(address, init_admin);
+    //         }
+    //         _ => panic!("unexpected"),
+    //     }
+    // }
+
+    // #[test]
+    // fn test_query_token_info() {
+    //     // Initialize
+    //     let init_name = "sec-sec".to_string();
+    //     let init_admin = HumanAddr("admin".to_string());
+    //     let init_symbol = "SECSEC".to_string();
+    //     let init_decimals = 8;
+    //     let mut deps = mock_dependencies(20, &[]);
+    //     let env = mock_env("instantiator", &[]);
+    //     let init_msg = InitMsg {
+    //         name: init_name.clone(),
+    //         admin: Some(init_admin.clone()),
+    //         symbol: init_symbol.clone(),
+    //         decimals: init_decimals.clone(),
+    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
+    //     };
+    //     let init_result = init(&mut deps, env, init_msg);
+    //     assert!(
+    //         init_result.is_ok(),
+    //         "Init failed: {}",
+    //         init_result.err().unwrap()
+    //     );
+
+    //     // Set admin as minter
+    //     let handle_msg = HandleMsg::SetMinters {
+    //         minters: vec![HumanAddr("admin".to_string())],
+    //         padding: None,
+    //     };
+    //     let handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
+    //     assert!(ensure_success(handle_result.unwrap()));
+
+    //     // Mint tokens to giannis
+    //     let mint_amount: u128 = 5000;
+    //     let handle_msg = HandleMsg::Mint {
+    //         recipient: HumanAddr("giannis".to_string()),
+    //         amount: Uint128(mint_amount),
+    //         padding: None,
+    //     };
+    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
+
+    //     // Query TokenInfo
+    //     let query_msg = QueryMsg::TokenInfo {};
+    //     let query_result = query(&deps, query_msg);
+    //     assert!(
+    //         query_result.is_ok(),
+    //         "Init failed: {}",
+    //         query_result.err().unwrap()
+    //     );
+    //     let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
+    //     match query_answer {
+    //         QueryAnswer::TokenInfo {
+    //             name,
+    //             symbol,
+    //             decimals,
+    //             total_supply,
+    //         } => {
+    //             assert_eq!(name, init_name);
+    //             assert_eq!(symbol, init_symbol);
+    //             assert_eq!(decimals, init_decimals);
+    //             assert_eq!(total_supply, Some(Uint128(5000)));
+    //         }
+    //         _ => panic!("unexpected"),
+    //     }
+    // }
 }
