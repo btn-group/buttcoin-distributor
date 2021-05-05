@@ -27,9 +27,6 @@ pub enum StakingHandleMsg {
     // Admin commands
     StopContract {},
     ResumeContract {},
-    ChangeAdmin {
-        address: HumanAddr,
-    },
 
     // Master callbacks
     NotifyAllocation {
@@ -53,7 +50,6 @@ pub enum StakingHandleAnswer {
     Redeem { status: StakingResponseStatus },
     StopContract { status: StakingResponseStatus },
     ResumeContract { status: StakingResponseStatus },
-    ChangeAdmin { status: StakingResponseStatus },
     SetDeadline { status: StakingResponseStatus },
     ClaimRewardPool { status: StakingResponseStatus },
 }

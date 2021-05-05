@@ -90,7 +90,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 
     let response = match msg {
-        StakingHandleMsg::ChangeAdmin { address } => change_admin(deps, env, address),
         StakingHandleMsg::Receive {
             from, amount, msg, ..
         } => receive(deps, env, from, amount.u128(), msg),
@@ -100,28 +99,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     };
 
     pad_handle_result(response, RESPONSE_BLOCK_SIZE)
-}
-
-fn change_admin<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    address: HumanAddr,
-) -> StdResult<HandleResponse> {
-    let mut config_store = TypedStoreMut::attach(&mut deps.storage);
-    let mut config: Config = config_store.load(CONFIG_KEY)?;
-
-    enforce_admin(config.clone(), env)?;
-
-    config.admin = address;
-    config_store.store(CONFIG_KEY, &config)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&StakingHandleAnswer::ChangeAdmin {
-            status: Success,
-        })?),
-    })
 }
 
 // This is called from the snip-20 SEFI contract
