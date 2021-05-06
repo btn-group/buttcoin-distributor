@@ -442,8 +442,10 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::msg::SecretContract;
+    use crate::msg::{ResponseStatus, SecretContract};
     use cosmwasm_std::testing::*;
+    use cosmwasm_std::QueryResponse;
+    use std::any::Any;
 
     //=== HELPER FUNCTIONS ===
 
@@ -473,43 +475,34 @@ mod tests {
         (init(&mut deps, env, init_msg), deps)
     }
 
-    // fn extract_error_msg<T: Any>(error: StdResult<T>) -> String {
-    //     match error {
-    //         Ok(response) => {
-    //             let bin_err = (&response as &dyn Any)
-    //                 .downcast_ref::<QueryResponse>()
-    //                 .expect("An error was expected, but no error could be extracted");
-    //             match from_binary(bin_err).unwrap() {
-    //                 QueryAnswer::ViewingKeyError { msg } => msg,
-    //                 _ => panic!("Unexpected query answer"),
-    //             }
-    //         }
-    //         Err(err) => match err {
-    //             StdError::GenericErr { msg, .. } => msg,
-    //             _ => panic!("Unexpected result from init"),
-    //         },
-    //     }
-    // }
+    fn extract_error_msg<T: Any>(error: StdResult<T>) -> String {
+        match error {
+            Ok(response) => {
+                let bin_err = (&response as &dyn Any)
+                    .downcast_ref::<QueryResponse>()
+                    .expect("An error was expected, but no error could be extracted");
+                match from_binary(bin_err).unwrap() {
+                    QueryAnswer::ViewingKeyError { msg } => msg,
+                    _ => panic!("Unexpected query answer"),
+                }
+            }
+            Err(err) => match err {
+                StdError::GenericErr { msg, .. } => msg,
+                _ => panic!("Unexpected result from init"),
+            },
+        }
+    }
 
-    // fn ensure_success(handle_result: HandleResponse) -> bool {
-    //     let handle_result: HandleAnswer = from_binary(&handle_result.data.unwrap()).unwrap();
+    fn ensure_success(handle_result: HandleResponse) -> bool {
+        let handle_result: HandleAnswer = from_binary(&handle_result.data.unwrap()).unwrap();
 
-    //     match handle_result {
-    //         HandleAnswer::Transfer { status }
-    //         | HandleAnswer::Send { status }
-    //         | HandleAnswer::Burn { status }
-    //         | HandleAnswer::RegisterReceive { status }
-    //         | HandleAnswer::SetViewingKey { status }
-    //         | HandleAnswer::TransferFrom { status }
-    //         | HandleAnswer::SendFrom { status }
-    //         | HandleAnswer::BurnFrom { status }
-    //         | HandleAnswer::Mint { status }
-    //         | HandleAnswer::SetMinters { status } => {
-    //             matches!(status, ResponseStatus::Success { .. })
-    //         }
-    //         _ => panic!("HandleAnswer not supported for success extraction"),
-    //     }
-    // }
+        match handle_result {
+            HandleAnswer::ResumeContract { status } | HandleAnswer::StopContract { status } => {
+                matches!(status, ResponseStatus::Success { .. })
+            }
+            _ => panic!("HandleAnswer not supported for success extraction"),
+        }
+    }
 
     // Init tests
 
@@ -554,7 +547,7 @@ mod tests {
         );
     }
 
-    // // Handle tests
+    // Handle tests
 
     // #[test]
     // fn test_handle_transfer() {
@@ -616,26 +609,47 @@ mod tests {
     //     assert!(error.contains("insufficient funds"));
     // }
 
-    // #[test]
-    // fn test_handle_admin_commands() {
-    //     let admin_err = "Admin commands can only be run from admin address".to_string();
-    //     // Init
-    //     let (init_result, mut deps) = init_helper();
-    //     assert!(
-    //         init_result.is_ok(),
-    //         "Init failed: {}",
-    //         init_result.err().unwrap()
-    //     );
+    #[test]
+    fn test_handle_admin_commands() {
+        let admin_err = "not an admin".to_string();
+        // Init
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
 
-    //     // Set minters
-    //     let mint_msg = HandleMsg::SetMinters {
-    //         minters: vec![HumanAddr("not_admin".to_string())],
-    //         padding: None,
-    //     };
-    //     let handle_result = handle(&mut deps, mock_env("not_admin", &[]), mint_msg);
-    //     let error = extract_error_msg(handle_result);
-    //     assert!(error.contains(&admin_err.clone()));
-    // }
+        // Stop Contract
+        let stop_contract_msg = HandleMsg::StopContract {};
+        // When user is not an admin
+        let handle_result = handle(
+            &mut deps,
+            mock_env("not_admin", &[]),
+            stop_contract_msg.clone(),
+        );
+        let error = extract_error_msg(handle_result);
+        assert!(error.contains(&admin_err.clone()));
+        // When user is an admin
+        let handle_result = handle(&mut deps, mock_env("admin", &[]), stop_contract_msg);
+        let result = handle_result.unwrap();
+        assert!(ensure_success(result));
+
+        // Resune Contract
+        let resume_contract_msg = HandleMsg::ResumeContract {};
+        // When user is not an admin
+        let handle_result = handle(
+            &mut deps,
+            mock_env("not_admin", &[]),
+            resume_contract_msg.clone(),
+        );
+        let error = extract_error_msg(handle_result);
+        assert!(error.contains(&admin_err.clone()));
+        // When user is an admin
+        let handle_result = handle(&mut deps, mock_env("admin", &[]), resume_contract_msg);
+        let result = handle_result.unwrap();
+        assert!(ensure_success(result));
+    }
 
     // Query tests
 
@@ -695,141 +709,4 @@ mod tests {
             _ => panic!("unexpected"),
         }
     }
-
-    // #[test]
-    // fn test_authenticated_queries() {
-    //     // Init
-    //     let (init_result, mut deps) = init_helper();
-    //     assert!(
-    //         init_result.is_ok(),
-    //         "Init failed: {}",
-    //         init_result.err().unwrap()
-    //     );
-
-    //     // Set minters as admin
-    //     let handle_msg = HandleMsg::SetMinters {
-    //         minters: vec![HumanAddr("admin".to_string())],
-    //         padding: None,
-    //     };
-    //     let handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
-    //     assert!(ensure_success(handle_result.unwrap()));
-
-    //     // Mint tokens to giannis
-    //     let mint_amount: u128 = 5000;
-    //     let handle_msg = HandleMsg::Mint {
-    //         recipient: HumanAddr("giannis".to_string()),
-    //         amount: Uint128(mint_amount),
-    //         padding: None,
-    //     };
-    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
-
-    //     let no_vk_yet_query_msg = QueryMsg::Balance {
-    //         address: HumanAddr("giannis".to_string()),
-    //         key: "no_vk_yet".to_string(),
-    //     };
-    //     let query_result = query(&deps, no_vk_yet_query_msg);
-    //     let error = extract_error_msg(query_result);
-    //     assert_eq!(
-    //         error,
-    //         "Wrong viewing key for this address or viewing key not set".to_string()
-    //     );
-
-    //     let create_vk_msg = HandleMsg::CreateViewingKey {
-    //         entropy: "34".to_string(),
-    //         padding: None,
-    //     };
-    //     let handle_response = handle(&mut deps, mock_env("giannis", &[]), create_vk_msg).unwrap();
-    //     let vk = match from_binary(&handle_response.data.unwrap()).unwrap() {
-    //         HandleAnswer::CreateViewingKey { key } => key,
-    //         _ => panic!("Unexpected result from handle"),
-    //     };
-
-    //     let query_balance_msg = QueryMsg::Balance {
-    //         address: HumanAddr("giannis".to_string()),
-    //         key: vk.0,
-    //     };
-
-    //     let query_response = query(&deps, query_balance_msg).unwrap();
-    //     let balance = match from_binary(&query_response).unwrap() {
-    //         QueryAnswer::Balance { amount } => amount,
-    //         _ => panic!("Unexpected result from query"),
-    //     };
-    //     assert_eq!(balance, Uint128(5000));
-
-    //     let wrong_vk_query_msg = QueryMsg::Balance {
-    //         address: HumanAddr("giannis".to_string()),
-    //         key: "wrong_vk".to_string(),
-    //     };
-    //     let query_result = query(&deps, wrong_vk_query_msg);
-    //     let error = extract_error_msg(query_result);
-    //     assert_eq!(
-    //         error,
-    //         "Wrong viewing key for this address or viewing key not set".to_string()
-    //     );
-    // }
-
-    // #[test]
-    // fn test_query_token_info() {
-    //     // Initialize
-    //     let init_name = "sec-sec".to_string();
-    //     let init_admin = HumanAddr("admin".to_string());
-    //     let init_symbol = "SECSEC".to_string();
-    //     let init_decimals = 8;
-    //     let mut deps = mock_dependencies(20, &[]);
-    //     let env = mock_env("instantiator", &[]);
-    //     let init_msg = InitMsg {
-    //         name: init_name.clone(),
-    //         admin: Some(init_admin.clone()),
-    //         symbol: init_symbol.clone(),
-    //         decimals: init_decimals.clone(),
-    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
-    //     };
-    //     let init_result = init(&mut deps, env, init_msg);
-    //     assert!(
-    //         init_result.is_ok(),
-    //         "Init failed: {}",
-    //         init_result.err().unwrap()
-    //     );
-
-    //     // Set admin as minter
-    //     let handle_msg = HandleMsg::SetMinters {
-    //         minters: vec![HumanAddr("admin".to_string())],
-    //         padding: None,
-    //     };
-    //     let handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
-    //     assert!(ensure_success(handle_result.unwrap()));
-
-    //     // Mint tokens to giannis
-    //     let mint_amount: u128 = 5000;
-    //     let handle_msg = HandleMsg::Mint {
-    //         recipient: HumanAddr("giannis".to_string()),
-    //         amount: Uint128(mint_amount),
-    //         padding: None,
-    //     };
-    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
-
-    //     // Query TokenInfo
-    //     let query_msg = QueryMsg::TokenInfo {};
-    //     let query_result = query(&deps, query_msg);
-    //     assert!(
-    //         query_result.is_ok(),
-    //         "Init failed: {}",
-    //         query_result.err().unwrap()
-    //     );
-    //     let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
-    //     match query_answer {
-    //         QueryAnswer::TokenInfo {
-    //             name,
-    //             symbol,
-    //             decimals,
-    //             total_supply,
-    //         } => {
-    //             assert_eq!(name, init_name);
-    //             assert_eq!(symbol, init_symbol);
-    //             assert_eq!(decimals, init_decimals);
-    //             assert_eq!(total_supply, Some(Uint128(5000)));
-    //         }
-    //         _ => panic!("unexpected"),
-    //     }
-    // }
 }

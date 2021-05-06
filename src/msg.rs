@@ -78,6 +78,7 @@ pub enum QueryAnswer {
     ContractStatus { stopped: bool },
     FarmContract { farm_contract: SecretContract },
     Token { token: SecretContract },
+    ViewingKeyError { msg: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
