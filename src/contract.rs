@@ -626,7 +626,34 @@ mod tests {
     //     assert!(error.contains(&admin_err.clone()));
     // }
 
-    // // Query tests
+    // Query tests
+
+    #[test]
+    fn test_query_contract_status() {
+        // Init
+        let (init_result, deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Query contract status
+        let query_msg = QueryMsg::ContractStatus {};
+        let query_result = query(&deps, query_msg);
+        assert!(
+            query_result.is_ok(),
+            "Init failed: {}",
+            query_result.err().unwrap()
+        );
+        let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
+        match query_answer {
+            QueryAnswer::ContractStatus { stopped } => {
+                assert_eq!(stopped, false);
+            }
+            _ => panic!("unexpected"),
+        }
+    }
 
     // #[test]
     // fn test_authenticated_queries() {
@@ -698,44 +725,6 @@ mod tests {
     //         error,
     //         "Wrong viewing key for this address or viewing key not set".to_string()
     //     );
-    // }
-
-    // #[test]
-    // fn test_query_admin() {
-    //     let init_name = "sec-sec".to_string();
-    //     let init_admin = HumanAddr("admin".to_string());
-    //     let init_symbol = "SECSEC".to_string();
-    //     let init_decimals = 8;
-    //     let mut deps = mock_dependencies(20, &[]);
-    //     let env = mock_env("instantiator", &[]);
-    //     let init_msg = InitMsg {
-    //         name: init_name.clone(),
-    //         admin: Some(init_admin.clone()),
-    //         symbol: init_symbol.clone(),
-    //         decimals: init_decimals.clone(),
-    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
-    //     };
-    //     let init_result = init(&mut deps, env, init_msg);
-    //     assert!(
-    //         init_result.is_ok(),
-    //         "Init failed: {}",
-    //         init_result.err().unwrap()
-    //     );
-
-    //     let query_msg = QueryMsg::Admin {};
-    //     let query_result = query(&deps, query_msg);
-    //     assert!(
-    //         query_result.is_ok(),
-    //         "Init failed: {}",
-    //         query_result.err().unwrap()
-    //     );
-    //     let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
-    //     match query_answer {
-    //         QueryAnswer::Admin { address } => {
-    //             assert_eq!(address, init_admin);
-    //         }
-    //         _ => panic!("unexpected"),
-    //     }
     // }
 
     // #[test]
