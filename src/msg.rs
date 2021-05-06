@@ -55,6 +55,7 @@ pub enum ReceiveMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     ContractStatus {},
+    FarmContract {},
     Token {},
 
     // Authenticated
@@ -75,6 +76,7 @@ pub enum QueryAnswer {
     Rewards { rewards: Uint128 },
     Balance { amount: Uint128 },
     ContractStatus { stopped: bool },
+    FarmContract { farm_contract: SecretContract },
     Token { token: SecretContract },
 }
 

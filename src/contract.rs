@@ -65,6 +65,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     let response = match msg {
         QueryMsg::ContractStatus {} => query_contract_status(deps),
+        QueryMsg::FarmContract {} => query_farm_contract(deps),
         QueryMsg::Token {} => query_token(deps),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
@@ -205,6 +206,16 @@ fn query_contract_status<S: Storage, A: Api, Q: Querier>(
 
     to_binary(&QueryAnswer::ContractStatus {
         stopped: config.stopped,
+    })
+}
+
+fn query_farm_contract<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<Binary> {
+    let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
+
+    to_binary(&QueryAnswer::FarmContract {
+        farm_contract: config.farm_contract,
     })
 }
 
@@ -650,6 +661,36 @@ mod tests {
         match query_answer {
             QueryAnswer::ContractStatus { stopped } => {
                 assert_eq!(stopped, false);
+            }
+            _ => panic!("unexpected"),
+        }
+    }
+
+    #[test]
+    fn test_query_farm_contract() {
+        // Init
+        let (init_result, deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Get config
+        let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY).unwrap();
+
+        // Query contract status
+        let query_msg = QueryMsg::FarmContract {};
+        let query_result = query(&deps, query_msg);
+        assert!(
+            query_result.is_ok(),
+            "Init failed: {}",
+            query_result.err().unwrap()
+        );
+        let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
+        match query_answer {
+            QueryAnswer::FarmContract { farm_contract } => {
+                assert_eq!(farm_contract, config.farm_contract);
             }
             _ => panic!("unexpected"),
         }
