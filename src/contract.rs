@@ -430,31 +430,37 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
-    // use crate::msg::ResponseStatus;
-    // use cosmwasm_std::testing::*;
-    // use cosmwasm_std::{from_binary, BlockInfo, ContractInfo, MessageInfo, QueryResponse, WasmMsg};
-    // use std::any::Any;
+    use super::*;
+    use crate::msg::SecretContract;
+    use cosmwasm_std::testing::*;
 
-    // // Helper functions
+    //=== HELPER FUNCTIONS ===
 
-    // fn init_helper() -> (
-    //     StdResult<InitResponse>,
-    //     Extern<MockStorage, MockApi, MockQuerier>,
-    // ) {
-    //     let mut deps = mock_dependencies(20, &[]);
-    //     let env = mock_env("instantiator", &[]);
+    fn init_helper() -> (
+        StdResult<InitResponse>,
+        Extern<MockStorage, MockApi, MockQuerier>,
+    ) {
+        let mut deps = mock_dependencies(20, &[]);
+        let env = mock_env("admin", &[]);
 
-    //     let init_msg = InitMsg {
-    //         name: "sec-sec".to_string(),
-    //         admin: Some(HumanAddr("admin".to_string())),
-    //         symbol: "SECSEC".to_string(),
-    //         decimals: 8,
-    //         prng_seed: Binary::from("lolz fun yay".as_bytes()),
-    //     };
+        let init_msg = InitMsg {
+            farm_contract: SecretContract {
+                address: HumanAddr("farm-contract-address".to_string()),
+                contract_hash: "farm-contract-hash".to_string(),
+            },
+            token: SecretContract {
+                address: HumanAddr("token-contract-address".to_string()),
+                contract_hash: "token-contract-hash".to_string(),
+            },
+            shares_token: SecretContract {
+                address: HumanAddr("shares-token-contract-address".to_string()),
+                contract_hash: "shares-token-contract-hash".to_string(),
+            },
+            viewing_key: "btn-viewing-key".to_string(),
+        };
 
-    //     (init(&mut deps, env, init_msg), deps)
-    // }
+        (init(&mut deps, env, init_msg), deps)
+    }
 
     // fn extract_error_msg<T: Any>(error: StdResult<T>) -> String {
     //     match error {
@@ -494,25 +500,48 @@ mod tests {
     //     }
     // }
 
-    // // Init tests
+    // Init tests
 
-    // #[test]
-    // fn test_init_sanity() {
-    //     let (init_result, deps) = init_helper();
-    //     assert_eq!(init_result.unwrap(), InitResponse::default());
+    #[test]
+    fn test_init_sanity() {
+        let (init_result, deps) = init_helper();
+        let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY).unwrap();
+        let env = mock_env("admin", &[]);
 
-    //     let config = ReadonlyConfig::from_storage(&deps.storage);
-    //     let constants = config.constants().unwrap();
-    //     assert_eq!(config.total_supply(), 0);
-    //     assert_eq!(constants.name, "sec-sec".to_string());
-    //     assert_eq!(constants.admin, HumanAddr("admin".to_string()));
-    //     assert_eq!(constants.symbol, "SECSEC".to_string());
-    //     assert_eq!(constants.decimals, 8);
-    //     assert_eq!(
-    //         constants.prng_seed,
-    //         sha_256("lolz fun yay".to_owned().as_bytes())
-    //     );
-    // }
+        assert_eq!(
+            init_result.unwrap(),
+            InitResponse {
+                messages: vec![
+                    snip20::register_receive_msg(
+                        env.contract_code_hash,
+                        None,
+                        1,
+                        config.token.contract_hash.clone(),
+                        config.token.address.clone(),
+                    )
+                    .unwrap(),
+                    snip20::set_viewing_key_msg(
+                        config.viewing_key,
+                        None,
+                        RESPONSE_BLOCK_SIZE,
+                        config.token.contract_hash,
+                        config.token.address,
+                    )
+                    .unwrap(),
+                ],
+                log: vec![],
+            },
+        );
+
+        assert_eq!(
+            config.farm_contract.address,
+            HumanAddr("farm-contract-address".to_string())
+        );
+        assert_eq!(
+            config.farm_contract.contract_hash,
+            "farm-contract-hash".to_string()
+        );
+    }
 
     // // Handle tests
 
