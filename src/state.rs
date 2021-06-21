@@ -1,8 +1,9 @@
 use crate::msg::SecretContract;
 use cosmwasm_std::HumanAddr;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     // e.g. SEFI staking contract
     pub farm_contract: SecretContract,

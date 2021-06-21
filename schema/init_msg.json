@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "farm_contract",
+    "shares_token",
+    "token",
+    "viewing_key"
+  ],
+  "properties": {
+    "farm_contract": {
+      "$ref": "#/definitions/SecretContract"
+    },
+    "shares_token": {
+      "$ref": "#/definitions/SecretContract"
+    },
+    "token": {
+      "$ref": "#/definitions/SecretContract"
+    },
+    "viewing_key": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
+    "SecretContract": {
+      "type": "object",
+      "required": [
+        "address",
+        "contract_hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "contract_hash": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

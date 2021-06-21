@@ -171,6 +171,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-yield-optimizer-incentivized-equals-reward"
+version = "0.1.0"
+dependencies = [
+ "base64 0.12.3",
+ "bincode2",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "schemars",
+ "secret-toolkit",
+ "serde",
+ "snafu",
+ "subtle 2.4.0",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -244,22 +260,6 @@ dependencies = [
  "digest 0.8.1",
  "generic-array 0.12.4",
  "hmac",
-]
-
-[[package]]
-name = "incentivized-equals-reward-compounder"
-version = "0.1.0"
-dependencies = [
- "base64 0.12.3",
- "bincode2",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "schemars",
- "secret-toolkit",
- "serde",
- "snafu",
- "subtle 2.4.0",
 ]
 
 [[package]]
