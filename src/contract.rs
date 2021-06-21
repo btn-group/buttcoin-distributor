@@ -64,9 +64,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> StdResult<Binary> {
     let response = match msg {
-        QueryMsg::ContractStatus {} => query_contract_status(deps),
-        QueryMsg::FarmContract {} => query_farm_contract(deps),
-        QueryMsg::Token {} => query_token(deps),
+        QueryMsg::Config {} => query_public_config(deps),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
 
@@ -199,30 +197,16 @@ fn enforce_admin(config: Config, env: Env) -> StdResult<()> {
     Ok(())
 }
 
-fn query_contract_status<S: Storage, A: Api, Q: Querier>(
+fn query_public_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<Binary> {
     let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
 
-    to_binary(&QueryAnswer::ContractStatus {
-        stopped: config.stopped,
-    })
-}
-
-fn query_farm_contract<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<Binary> {
-    let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
-
-    to_binary(&QueryAnswer::FarmContract {
+    to_binary(&QueryAnswer::Config {
+        admin: config.admin,
         farm_contract: config.farm_contract,
-    })
-}
-
-fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Binary> {
-    let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
-
-    to_binary(&QueryAnswer::Token {
+        shares_token: config.shares_token,
+        stopped: config.stopped,
         token: config.token,
     })
 }
@@ -651,60 +635,28 @@ mod tests {
         assert!(ensure_success(result));
     }
 
-    // Query tests
-
+    //=== QUERY TESTS ===
     #[test]
-    fn test_query_contract_status() {
-        // Init
-        let (init_result, deps) = init_helper();
-        assert!(
-            init_result.is_ok(),
-            "Init failed: {}",
-            init_result.err().unwrap()
-        );
-
-        // Query contract status
-        let query_msg = QueryMsg::ContractStatus {};
-        let query_result = query(&deps, query_msg);
-        assert!(
-            query_result.is_ok(),
-            "Init failed: {}",
-            query_result.err().unwrap()
-        );
-        let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
+    fn test_query_config() {
+        let (_init_result, mut deps) = init_helper();
+        let config: Config = TypedStoreMut::attach(&mut deps.storage)
+            .load(CONFIG_KEY)
+            .unwrap();
+        let query_result = query(&deps, QueryMsg::Config {}).unwrap();
+        let query_answer: QueryAnswer = from_binary(&query_result).unwrap();
         match query_answer {
-            QueryAnswer::ContractStatus { stopped } => {
-                assert_eq!(stopped, false);
-            }
-            _ => panic!("unexpected"),
-        }
-    }
-
-    #[test]
-    fn test_query_farm_contract() {
-        // Init
-        let (init_result, deps) = init_helper();
-        assert!(
-            init_result.is_ok(),
-            "Init failed: {}",
-            init_result.err().unwrap()
-        );
-
-        // Get config
-        let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY).unwrap();
-
-        // Query contract status
-        let query_msg = QueryMsg::FarmContract {};
-        let query_result = query(&deps, query_msg);
-        assert!(
-            query_result.is_ok(),
-            "Init failed: {}",
-            query_result.err().unwrap()
-        );
-        let query_answer: QueryAnswer = from_binary(&query_result.unwrap()).unwrap();
-        match query_answer {
-            QueryAnswer::FarmContract { farm_contract } => {
+            QueryAnswer::Config {
+                admin,
+                stopped,
+                farm_contract,
+                shares_token,
+                token,
+            } => {
+                assert_eq!(admin, config.admin);
+                assert_eq!(stopped, config.stopped);
                 assert_eq!(farm_contract, config.farm_contract);
+                assert_eq!(shares_token, config.shares_token);
+                assert_eq!(token, config.token);
             }
             _ => panic!("unexpected"),
         }

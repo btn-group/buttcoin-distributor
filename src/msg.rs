@@ -54,9 +54,7 @@ pub enum ReceiveMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    ContractStatus {},
-    FarmContract {},
-    Token {},
+    Config {},
 
     // Authenticated
     Rewards {
@@ -73,12 +71,24 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
-    Rewards { rewards: Uint128 },
-    Balance { amount: Uint128 },
-    ContractStatus { stopped: bool },
-    FarmContract { farm_contract: SecretContract },
-    Token { token: SecretContract },
-    ViewingKeyError { msg: String },
+    Config {
+        admin: HumanAddr,
+        stopped: bool,
+        farm_contract: SecretContract,
+        shares_token: SecretContract,
+        token: SecretContract,
+    },
+
+    // Authenticated
+    Rewards {
+        rewards: Uint128,
+    },
+    Balance {
+        amount: Uint128,
+    },
+    ViewingKeyError {
+        msg: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
