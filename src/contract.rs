@@ -3,35 +3,32 @@
 // Can you send unsupported coins in Secret Network or does the regeister stuff in init prevent that?
 use crate::msg::ResponseStatus::Success;
 use crate::msg::{HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg, ReceiveMsg};
+use crate::state::{config, config_read, State};
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
-
 use secret_toolkit::snip20;
-use secret_toolkit::storage::{TypedStore, TypedStoreMut};
 use secret_toolkit::utils::{pad_handle_result, pad_query_result};
 
-use crate::constants::*;
-use crate::state::Config;
+// === CONSTANTS ===
+pub const RESPONSE_BLOCK_SIZE: usize = 256;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let mut config_store = TypedStoreMut::attach(&mut deps.storage);
-    config_store.store(
-        CONFIG_KEY,
-        &Config {
-            farm_contract: msg.farm_contract,
-            token: msg.token.clone(),
-            shares_token: msg.shares_token.clone(),
-            admin: env.message.sender.clone(),
-            viewing_key: msg.viewing_key.clone(),
-            stopped: false,
-        },
-    )?;
+    let state: State = State {
+        farm_contract: msg.farm_contract,
+        token: msg.token.clone(),
+        shares_token: msg.shares_token.clone(),
+        admin: env.message.sender.clone(),
+        viewing_key: msg.viewing_key.clone(),
+        stopped: false,
+    };
+
+    config(&mut deps.storage).save(&state)?;
 
     // https://github.com/enigmampc/secret-toolkit/tree/master/packages/snip20
     // Register this contract to be able to receive the incentivized token
@@ -76,8 +73,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
-    let config: Config = TypedStoreMut::attach(&mut deps.storage).load(CONFIG_KEY)?;
-    if config.stopped {
+    let state: State = config_read(&deps.storage).load()?;
+    if state.stopped {
         return match msg {
             HandleMsg::ResumeContract {} => resume_contract(deps, env),
             _ => Err(StdError::generic_err(
@@ -107,22 +104,21 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     amount: u128,
 ) -> StdResult<HandleResponse> {
     // Ensure that the sent tokens are from an expected contract address
-    let config_store = TypedStoreMut::attach(&mut deps.storage);
-    let config: Config = config_store.load(CONFIG_KEY)?;
-    if env.message.sender != config.token.address {
+    let state: State = config_read(&deps.storage).load()?;
+    if env.message.sender != state.token.address {
         return Err(StdError::generic_err(format!(
             "This token is not supported. Supported: {}, given: {}",
-            config.token.address, env.message.sender
+            state.token.address, env.message.sender
         )));
     }
-    let total_shares: u128 = total_supply_of_shares_token(&deps.querier, config.clone())
+    let total_shares: u128 = total_supply_of_shares_token(&deps.querier, state.clone())
         .unwrap()
         .u128();
     let _shares_for_this_deposit: u128 = if total_shares == 0 {
         amount
     } else {
         let balance_of_pool_before_deposit =
-            balance_of_pool(&deps.querier, env.clone(), config.clone()).unwrap() - amount;
+            balance_of_pool(&deps.querier, env.clone(), state.clone()).unwrap() - amount;
         // 4. Shares for this deposit
         amount * total_shares / balance_of_pool_before_deposit
     };
@@ -133,8 +129,8 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
         Uint128(_shares_for_this_deposit),
         None,
         RESPONSE_BLOCK_SIZE,
-        config.shares_token.contract_hash,
-        config.shares_token.address,
+        state.shares_token.contract_hash,
+        state.shares_token.address,
     )?);
 
     Ok(HandleResponse {
@@ -148,12 +144,12 @@ fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    let config = TypedStore::<Config, S>::attach(&deps.storage).load(CONFIG_KEY)?;
+    let state: State = config_read(&deps.storage).load()?;
     let mut messages: Vec<CosmosMsg> = vec![];
     let balance_of_this_contract: u128 =
-        balance_of_this_contract(&deps.querier, env.clone(), config.clone()).unwrap();
+        balance_of_this_contract(&deps.querier, env.clone(), state.clone()).unwrap();
     messages.push(secret_toolkit::snip20::send_msg(
-        config.farm_contract.address.clone(),
+        state.farm_contract.address.clone(),
         Uint128(balance_of_this_contract),
         Some(to_binary(&HandleMsg::Receive {
             sender: env.contract.address.clone(),
@@ -163,20 +159,20 @@ fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
         })?),
         None,
         RESPONSE_BLOCK_SIZE,
-        config.token.contract_hash.clone(),
-        config.token.address.clone(),
+        state.token.contract_hash.clone(),
+        state.token.address.clone(),
     )?);
 
     // At this point the reward will be in the account and the performance fee will be sent to admin
     let commission: u128 =
-        unclaimed_rewards(&deps.querier, env.clone(), config.clone()).unwrap() * 500 / 10_000;
+        unclaimed_rewards(&deps.querier, env.clone(), state.clone()).unwrap() * 500 / 10_000;
     messages.push(secret_toolkit::snip20::transfer_msg(
-        config.admin,
+        state.admin,
         Uint128(commission),
         None,
         RESPONSE_BLOCK_SIZE,
-        config.token.contract_hash,
-        config.token.address,
+        state.token.contract_hash,
+        state.token.address,
     )?);
 
     Ok(HandleResponse {
@@ -186,8 +182,8 @@ fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn enforce_admin(config: Config, env: Env) -> StdResult<()> {
-    if config.admin != env.message.sender {
+fn enforce_admin(state: State, env: Env) -> StdResult<()> {
+    if state.admin != env.message.sender {
         return Err(StdError::generic_err(format!(
             "not an admin: {}",
             env.message.sender
@@ -200,14 +196,14 @@ fn enforce_admin(config: Config, env: Env) -> StdResult<()> {
 fn query_public_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<Binary> {
-    let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY)?;
+    let state: State = config_read(&deps.storage).load()?;
 
     to_binary(&QueryAnswer::Config {
-        admin: config.admin,
-        farm_contract: config.farm_contract,
-        shares_token: config.shares_token,
-        stopped: config.stopped,
-        token: config.token,
+        admin: state.admin,
+        farm_contract: state.farm_contract,
+        shares_token: state.shares_token,
+        stopped: state.stopped,
+        token: state.token,
     })
 }
 
@@ -230,13 +226,12 @@ fn resume_contract<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    let mut config_store = TypedStoreMut::attach(&mut deps.storage);
-    let mut config: Config = config_store.load(CONFIG_KEY)?;
+    let mut state: State = config_read(&deps.storage).load()?;
 
-    enforce_admin(config.clone(), env)?;
+    enforce_admin(state.clone(), env)?;
 
-    config.stopped = false;
-    config_store.store(CONFIG_KEY, &config)?;
+    state.stopped = false;
+    config(&mut deps.storage).save(&state)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -251,13 +246,12 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    let mut config_store = TypedStoreMut::attach(&mut deps.storage);
-    let mut config: Config = config_store.load(CONFIG_KEY)?;
+    let mut state: State = config_read(&deps.storage).load()?;
 
-    enforce_admin(config.clone(), env)?;
+    enforce_admin(state.clone(), env)?;
 
-    config.stopped = true;
-    config_store.store(CONFIG_KEY, &config)?;
+    state.stopped = true;
+    config(&mut deps.storage).save(&state)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -267,15 +261,15 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
 }
 
 //As such, we provide the Querier with read-only access to the state snapshot right before execution of the current CosmWasm message. Since we take a snapshot and both the executing contract and the queried contract have read-only access to the data before the contract execution, this is still safe with Rust's borrowing rules (as a placeholder for secure design). The current contract only writes to a cache, which is flushed afterwards on success.
-fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdResult<u128> {
+fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
     // 1. Get unclaimed rewards in third party contract
     let unclaimed_rewards: u128 = querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.farm_contract.address.clone(),
-            callback_code_hash: config.farm_contract.contract_hash.clone(),
+            contract_addr: state.farm_contract.address.clone(),
+            callback_code_hash: state.farm_contract.contract_hash.clone(),
             msg: to_binary(&QueryMsg::Rewards {
                 address: env.contract.address.clone(),
-                key: config.viewing_key.clone(),
+                key: state.viewing_key.clone(),
                 height: env.block.height,
             })?,
         }))
@@ -283,34 +277,34 @@ fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdResu
 
     // 2. Get total locked in third party
     let total_locked_in_farm_contract: u128 =
-        total_locked_in_farm_contract(querier, env.clone(), config.clone()).unwrap();
+        total_locked_in_farm_contract(querier, env.clone(), state.clone()).unwrap();
     // 3. Get balance of this contract - the new amount?
     // DO I need the response_block_size_here? I don't really care who sees the balance etc
     // I want people to see everything so that they can check everything is right
     let balance_of_this_contract: u128 =
-        balance_of_this_contract(querier, env.clone(), config.clone()).unwrap();
+        balance_of_this_contract(querier, env.clone(), state.clone()).unwrap();
     Ok(unclaimed_rewards + total_locked_in_farm_contract + balance_of_this_contract)
 }
 
-fn unclaimed_rewards<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdResult<u128> {
+fn unclaimed_rewards<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
     querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.farm_contract.address.clone(),
-            callback_code_hash: config.farm_contract.contract_hash.clone(),
+            contract_addr: state.farm_contract.address.clone(),
+            callback_code_hash: state.farm_contract.contract_hash.clone(),
             msg: to_binary(&QueryMsg::Rewards {
                 address: env.contract.address.clone(),
-                key: config.viewing_key.clone(),
+                key: state.viewing_key.clone(),
                 height: env.block.height,
             })?,
         }))
         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?
 }
 
-fn balance_of_this_contract<Q: Querier>(querier: &Q, env: Env, config: Config) -> StdResult<u128> {
+fn balance_of_this_contract<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
     Ok((snip20::balance_query(
         querier,
         env.contract.address.clone(),
-        config.viewing_key,
+        state.viewing_key,
         RESPONSE_BLOCK_SIZE,
         env.contract_code_hash.clone(),
         env.contract.address.clone(),
@@ -322,15 +316,15 @@ fn balance_of_this_contract<Q: Querier>(querier: &Q, env: Env, config: Config) -
 fn total_locked_in_farm_contract<Q: Querier>(
     querier: &Q,
     env: Env,
-    config: Config,
+    state: State,
 ) -> StdResult<u128> {
     let amount: u128 = querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.farm_contract.address,
-            callback_code_hash: config.farm_contract.contract_hash,
+            contract_addr: state.farm_contract.address,
+            callback_code_hash: state.farm_contract.contract_hash,
             msg: to_binary(&QueryMsg::Balance {
                 address: env.contract.address.clone(),
-                key: config.viewing_key.clone(),
+                key: state.viewing_key.clone(),
             })?,
         }))
         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?;
@@ -338,12 +332,12 @@ fn total_locked_in_farm_contract<Q: Querier>(
     Ok(amount)
 }
 
-fn total_supply_of_shares_token<Q: Querier>(querier: &Q, config: Config) -> StdResult<Uint128> {
+fn total_supply_of_shares_token<Q: Querier>(querier: &Q, state: State) -> StdResult<Uint128> {
     let amount = (secret_toolkit::snip20::token_info_query(
         querier,
         RESPONSE_BLOCK_SIZE,
-        config.shares_token.contract_hash,
-        config.shares_token.address,
+        state.shares_token.contract_hash,
+        state.shares_token.address,
     )?)
     .total_supply
     .unwrap();
@@ -356,26 +350,25 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
     env: Env,
     amount_of_shares: Uint128,
 ) -> StdResult<HandleResponse> {
-    let config: Config = TypedStoreMut::attach(&mut deps.storage).load(CONFIG_KEY)?;
+    let state: State = config_read(&deps.storage).load()?;
     // 1. Burn the tokens from the user
     let mut messages: Vec<CosmosMsg> = vec![snip20::burn_from_msg(
         env.message.sender.clone(),
         amount_of_shares,
         None,
         RESPONSE_BLOCK_SIZE,
-        config.shares_token.contract_hash.clone(),
-        config.shares_token.address.clone(),
+        state.shares_token.contract_hash.clone(),
+        state.shares_token.address.clone(),
     )?];
-    let total_shares: u128 = total_supply_of_shares_token(&deps.querier, config.clone())
+    let total_shares: u128 = total_supply_of_shares_token(&deps.querier, state.clone())
         .unwrap()
         .u128();
     // 2. At this point we need to figure out how much of the token to withdraw from farm contract
-    let amount_of_token: u128 = balance_of_pool(&deps.querier, env.clone(), config.clone())
-        .unwrap()
+    let amount_of_token: u128 = balance_of_pool(&deps.querier, env.clone(), state.clone()).unwrap()
         * amount_of_shares.u128()
         / total_shares;
     let total_locked_in_farm_contract: u128 =
-        total_locked_in_farm_contract(&deps.querier, env.clone(), config.clone()).unwrap();
+        total_locked_in_farm_contract(&deps.querier, env.clone(), state.clone()).unwrap();
     let amount_to_withdraw_from_farm_contract: u128 =
         if amount_of_token > total_locked_in_farm_contract {
             total_locked_in_farm_contract
@@ -384,8 +377,8 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
         };
     messages.push(
         WasmMsg::Execute {
-            contract_addr: config.farm_contract.address.clone(),
-            callback_code_hash: config.farm_contract.contract_hash.clone(),
+            contract_addr: state.farm_contract.address.clone(),
+            callback_code_hash: state.farm_contract.contract_hash.clone(),
             msg: to_binary(&HandleMsg::Redeem {
                 amount: Uint128(amount_to_withdraw_from_farm_contract),
             })?,
@@ -399,21 +392,21 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
         Uint128(amount_of_token),
         None,
         RESPONSE_BLOCK_SIZE,
-        config.token.contract_hash.clone(),
-        config.token.address.clone(),
+        state.token.contract_hash.clone(),
+        state.token.address.clone(),
     )?);
 
     // 4. Commission from claimed rewards
     // At this point the reward will be in the account and the performance fee will be sent to admin
     let commission: u128 =
-        unclaimed_rewards(&deps.querier, env.clone(), config.clone()).unwrap() * 500 / 10_000;
+        unclaimed_rewards(&deps.querier, env.clone(), state.clone()).unwrap() * 500 / 10_000;
     messages.push(secret_toolkit::snip20::transfer_msg(
-        config.admin,
+        state.admin,
         Uint128(commission),
         None,
         RESPONSE_BLOCK_SIZE,
-        config.token.contract_hash,
-        config.token.address,
+        state.token.contract_hash,
+        state.token.address,
     )?);
 
     Ok(HandleResponse {
@@ -426,7 +419,8 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::msg::{ResponseStatus, SecretContract};
+    use crate::msg::ResponseStatus;
+    use crate::state::SecretContract;
     use cosmwasm_std::testing::*;
     use cosmwasm_std::QueryResponse;
     use std::any::Any;
@@ -493,7 +487,7 @@ mod tests {
     #[test]
     fn test_init_sanity() {
         let (init_result, deps) = init_helper();
-        let config: Config = TypedStore::attach(&deps.storage).load(CONFIG_KEY).unwrap();
+        let state: State = config_read(&deps.storage).load().unwrap();
         let env = mock_env("admin", &[]);
 
         assert_eq!(
@@ -504,16 +498,16 @@ mod tests {
                         env.contract_code_hash,
                         None,
                         1,
-                        config.token.contract_hash.clone(),
-                        config.token.address.clone(),
+                        state.token.contract_hash.clone(),
+                        state.token.address.clone(),
                     )
                     .unwrap(),
                     snip20::set_viewing_key_msg(
-                        config.viewing_key,
+                        state.viewing_key,
                         None,
                         RESPONSE_BLOCK_SIZE,
-                        config.token.contract_hash,
-                        config.token.address,
+                        state.token.contract_hash,
+                        state.token.address,
                     )
                     .unwrap(),
                 ],
@@ -522,11 +516,11 @@ mod tests {
         );
 
         assert_eq!(
-            config.farm_contract.address,
+            state.farm_contract.address,
             HumanAddr("farm-contract-address".to_string())
         );
         assert_eq!(
-            config.farm_contract.contract_hash,
+            state.farm_contract.contract_hash,
             "farm-contract-hash".to_string()
         );
     }
@@ -638,10 +632,8 @@ mod tests {
     //=== QUERY TESTS ===
     #[test]
     fn test_query_config() {
-        let (_init_result, mut deps) = init_helper();
-        let config: Config = TypedStoreMut::attach(&mut deps.storage)
-            .load(CONFIG_KEY)
-            .unwrap();
+        let (_init_result, deps) = init_helper();
+        let state: State = config_read(&deps.storage).load().unwrap();
         let query_result = query(&deps, QueryMsg::Config {}).unwrap();
         let query_answer: QueryAnswer = from_binary(&query_result).unwrap();
         match query_answer {
@@ -652,11 +644,11 @@ mod tests {
                 shares_token,
                 token,
             } => {
-                assert_eq!(admin, config.admin);
-                assert_eq!(stopped, config.stopped);
-                assert_eq!(farm_contract, config.farm_contract);
-                assert_eq!(shares_token, config.shares_token);
-                assert_eq!(token, config.token);
+                assert_eq!(admin, state.admin);
+                assert_eq!(stopped, state.stopped);
+                assert_eq!(farm_contract, state.farm_contract);
+                assert_eq!(shares_token, state.shares_token);
+                assert_eq!(token, state.token);
             }
             _ => panic!("unexpected"),
         }

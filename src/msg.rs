@@ -1,13 +1,7 @@
+use crate::state::SecretContract;
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone, JsonSchema)]
-pub struct SecretContract {
-    pub address: HumanAddr,
-    pub contract_hash: String,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
