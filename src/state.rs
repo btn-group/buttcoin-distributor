@@ -13,6 +13,7 @@ pub struct SecretContract {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
+    pub contract_address: HumanAddr,
     // e.g. SEFI staking contract
     pub farm_contract: SecretContract,
     // incentivized_token and reward_token will be the same in this contract

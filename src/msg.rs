@@ -48,18 +48,14 @@ pub enum ReceiveMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    Balance { token: SecretContract },
     Config {},
-
     // Authenticated
-    Rewards {
-        address: HumanAddr,
-        key: String,
-        height: u64,
-    },
-    Balance {
-        address: HumanAddr,
-        key: String,
-    },
+    // Rewards {
+    //     address: HumanAddr,
+    //     key: String,
+    //     height: u64,
+    // },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
