@@ -97,6 +97,7 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     amount: u128,
 ) -> StdResult<HandleResponse> {
     let mut messages: Vec<CosmosMsg> = vec![];
+    // let state: State = config_read(&deps.storage).load()?;
     // // 1. Calculate the user's share of the pool
 
     // // 2. Mint tokens for the user
@@ -136,7 +137,7 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
 //     let state: State = config_read(&deps.storage).load()?;
 //     let mut messages: Vec<CosmosMsg> = vec![];
 //     let balance_of_this_contract: u128 =
-//         balance_of_this_contract(&deps.querier, env.clone(), state.clone()).unwrap();
+//         query_balance(deps, state.token).unwrap();
 //     messages.push(secret_toolkit::snip20::send_msg(
 //         state.farm_contract.address.clone(),
 //         Uint128(balance_of_this_contract),
@@ -266,6 +267,7 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
 
 // //As such, we provide the Querier with read-only access to the state snapshot right before execution of the current CosmWasm message. Since we take a snapshot and both the executing contract and the queried contract have read-only access to the data before the contract execution, this is still safe with Rust's borrowing rules (as a placeholder for secure design). The current contract only writes to a cache, which is flushed afterwards on success.
 // fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
+//     let state: State = config_read(&deps.storage).load()?;
 //     // 1. Get unclaimed rewards in third party contract
 //     let unclaimed_rewards: u128 = querier
 //         .query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -286,7 +288,7 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
 //     // DO I need the response_block_size_here? I don't really care who sees the balance etc
 //     // I want people to see everything so that they can check everything is right
 //     let balance_of_this_contract: u128 =
-//         balance_of_this_contract(querier, env.clone(), state.clone()).unwrap();
+//         query_balance(deps, state.token).unwrap();
 //     Ok(unclaimed_rewards + total_locked_in_farm_contract + balance_of_this_contract)
 // }
 
@@ -303,19 +305,6 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
 //         }))
 //         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?
 // }
-
-fn balance_of_this_contract<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
-    Ok((snip20::balance_query(
-        querier,
-        env.contract.address.clone(),
-        state.viewing_key,
-        RESPONSE_BLOCK_SIZE,
-        env.contract_code_hash.clone(),
-        env.contract.address.clone(),
-    )?)
-    .amount
-    .u128())
-}
 
 // fn total_locked_in_farm_contract<Q: Querier>(
 //     querier: &Q,
@@ -515,68 +504,7 @@ mod tests {
         );
     }
 
-    // Handle tests
-
-    // #[test]
-    // fn test_handle_transfer() {
-    //     // Initialize
-    //     let (init_result, mut deps) = init_helper();
-    //     assert!(
-    //         init_result.is_ok(),
-    //         "Init failed: {}",
-    //         init_result.err().unwrap()
-    //     );
-
-    //     // Set bob as minter
-    //     let handle_msg = HandleMsg::SetMinters {
-    //         minters: vec![HumanAddr("bob".to_string())],
-    //         padding: None,
-    //     };
-    //     let _handle_result = handle(&mut deps, mock_env("admin", &[]), handle_msg);
-
-    //     // Try mint to bob
-    //     let mint_amount: u128 = 5000;
-    //     let handle_msg = HandleMsg::Mint {
-    //         recipient: HumanAddr("bob".to_string()),
-    //         amount: Uint128(mint_amount),
-    //         padding: None,
-    //     };
-    //     let _handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
-
-    //     // Transfer from bob to alice
-    //     let handle_msg = HandleMsg::Transfer {
-    //         recipient: HumanAddr("alice".to_string()),
-    //         amount: Uint128(1000),
-    //         padding: None,
-    //     };
-    //     let handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
-    //     let result = handle_result.unwrap();
-    //     assert!(ensure_success(result));
-
-    //     // Check bob and alice's balances are correct after transfer
-    //     let bob_canonical = deps
-    //         .api
-    //         .canonical_address(&HumanAddr("bob".to_string()))
-    //         .unwrap();
-    //     let alice_canonical = deps
-    //         .api
-    //         .canonical_address(&HumanAddr("alice".to_string()))
-    //         .unwrap();
-    //     let balances = ReadonlyBalances::from_storage(&deps.storage);
-    //     assert_eq!(5000 - 1000, balances.account_amount(&bob_canonical));
-    //     assert_eq!(1000, balances.account_amount(&alice_canonical));
-
-    //     // Try to transfer more than alice's balance to bob
-    //     let handle_msg = HandleMsg::Transfer {
-    //         recipient: HumanAddr("alice".to_string()),
-    //         amount: Uint128(10000),
-    //         padding: None,
-    //     };
-    //     let handle_result = handle(&mut deps, mock_env("bob", &[]), handle_msg);
-    //     let error = extract_error_msg(handle_result);
-    //     assert!(error.contains("insufficient funds"));
-    // }
-
+    //=== Handle tests ===
     #[test]
     fn test_handle_admin_commands() {
         let admin_err = "not an admin".to_string();
