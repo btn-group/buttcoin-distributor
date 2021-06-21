@@ -33,8 +33,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     config(&mut deps.storage).save(&state)?;
 
     // https://github.com/enigmampc/secret-toolkit/tree/master/packages/snip20
-    // Register this contract to be able to receive the incentivized token
-    // Enable this contract to see it's incentivized token details via viewing key
     let messages = vec![
         snip20::register_receive_msg(
             env.contract_code_hash,
@@ -111,7 +109,7 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     //     state.shares_token.address,
     // )?);
 
-    // let total_shares: u128 = total_supply_of_shares_token(&deps.querier, state.clone())
+    // let total_shares: u128 = query_balance(deps, state.shares_token)
     //     .unwrap()
     //     .u128();
     // let _shares_for_this_deposit: u128 = if total_shares == 0 {
@@ -228,7 +226,6 @@ fn receive<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-//
 fn resume_contract<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -339,19 +336,6 @@ fn balance_of_this_contract<Q: Querier>(querier: &Q, env: Env, state: State) -> 
 //     Ok(amount)
 // }
 
-fn total_supply_of_shares_token<Q: Querier>(querier: &Q, state: State) -> StdResult<Uint128> {
-    let amount = (secret_toolkit::snip20::token_info_query(
-        querier,
-        RESPONSE_BLOCK_SIZE,
-        state.shares_token.contract_hash,
-        state.shares_token.address,
-    )?)
-    .total_supply
-    .unwrap();
-
-    Ok(amount)
-}
-
 // fn withdraw<S: Storage, A: Api, Q: Querier>(
 //     deps: &mut Extern<S, A, Q>,
 //     env: Env,
@@ -367,7 +351,7 @@ fn total_supply_of_shares_token<Q: Querier>(querier: &Q, state: State) -> StdRes
 //         state.shares_token.contract_hash.clone(),
 //         state.shares_token.address.clone(),
 //     )?];
-//     let total_shares: u128 = total_supply_of_shares_token(&deps.querier, state.clone())
+//     let total_shares: u128 = query_balance(deps, state.shares_token)
 //         .unwrap()
 //         .u128();
 //     // 2. At this point we need to figure out how much of the token to withdraw from farm contract
