@@ -2,8 +2,17 @@ use crate::contract::RESPONSE_BLOCK_SIZE;
 use crate::state::SecretContract;
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
-use secret_toolkit::utils::Query;
+use secret_toolkit::utils::{HandleCallback, Query};
 use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LPStakingHandleMsg {
+    Redeem { amount: Option<Uint128> },
+}
+impl HandleCallback for LPStakingHandleMsg {
+    const BLOCK_SIZE: usize = RESPONSE_BLOCK_SIZE;
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -74,6 +83,7 @@ pub enum HandleAnswer {
 #[serde(rename_all = "snake_case")]
 pub enum ReceiveMsg {
     Deposit {},
+    Withdraw {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

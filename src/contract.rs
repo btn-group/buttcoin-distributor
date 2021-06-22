@@ -1,9 +1,6 @@
-// APPLY performance_fee of 3% (300/10_000) when calculating fees etc
-// Do we need governanceRecoverUnsupported in Secret Network?
-// Can you send unsupported coins in Secret Network or does the regeister stuff in init prevent that?
 use crate::msg::ResponseStatus::Success;
 use crate::msg::{
-    HandleAnswer, HandleMsg, InitMsg, LPStakingQueryMsg, LPStakingReceiveMsg,
+    HandleAnswer, HandleMsg, InitMsg, LPStakingHandleMsg, LPStakingQueryMsg, LPStakingReceiveMsg,
     LPStakingRewardsResponse, QueryAnswer, QueryMsg, ReceiveMsg,
 };
 use crate::state::{config, config_read, SecretContract, State};
@@ -12,7 +9,7 @@ use cosmwasm_std::{
     InitResponse, Querier, QueryResult, StdError, StdResult, Storage, Uint128,
 };
 use secret_toolkit::snip20;
-use secret_toolkit::utils::{pad_handle_result, Query};
+use secret_toolkit::utils::{pad_handle_result, HandleCallback, Query};
 
 // === CONSTANTS ===
 pub const RESPONSE_BLOCK_SIZE: usize = 256;
@@ -154,10 +151,10 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     )?);
 
     // 5. Calculate fees and send to profit sharing contract
-    let fees: u128 = unclaimed_rewards_of_contract * 500 / 10_000;
+    let fee: u128 = unclaimed_rewards_of_contract * 500 / 10_000;
     messages.push(secret_toolkit::snip20::transfer_msg(
         state.profit_sharing_contract.address.clone(),
-        Uint128(fees),
+        Uint128(fee),
         None,
         RESPONSE_BLOCK_SIZE,
         state.token.contract_hash,
@@ -223,6 +220,7 @@ fn receive<S: Storage, A: Api, Q: Querier>(
 
     match msg {
         ReceiveMsg::Deposit {} => deposit(deps, env, from, amount),
+        ReceiveMsg::Withdraw {} => withdraw(deps, env, from, amount),
     }
 }
 
@@ -264,33 +262,6 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-// //As such, we provide the Querier with read-only access to the state snapshot right before execution of the current CosmWasm message. Since we take a snapshot and both the executing contract and the queried contract have read-only access to the data before the contract execution, this is still safe with Rust's borrowing rules (as a placeholder for secure design). The current contract only writes to a cache, which is flushed afterwards on success.
-// fn balance_of_pool<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
-//     let state: State = config_read(&deps.storage).load()?;
-//     // 1. Get unclaimed rewards in third party contract
-//     let unclaimed_rewards: u128 = querier
-//         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-//             contract_addr: state.farm_contract.address.clone(),
-//             callback_code_hash: state.farm_contract.contract_hash.clone(),
-//             msg: to_binary(&QueryMsg::Rewards {
-//                 address: env.contract.address.clone(),
-//                 key: state.viewing_key.clone(),
-//                 height: env.block.height,
-//             })?,
-//         }))
-//         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?;
-
-//     // 2. Get total locked in third party
-//     let total_locked_in_farm_contract: u128 =
-//         total_locked_in_farm_contract(querier, env.clone(), state.clone()).unwrap();
-//     // 3. Get balance of this contract - the new amount?
-//     // DO I need the response_block_size_here? I don't really care who sees the balance etc
-//     // I want people to see everything so that they can check everything is right
-//     let balance_of_this_contract: u128 =
-//         query_balance(deps, state.token).unwrap();
-//     Ok(unclaimed_rewards + total_locked_in_farm_contract + balance_of_this_contract)
-// }
-
 fn query_rewards<Q: Querier>(querier: &Q, env: Env, state: State) -> QueryResult {
     let rewards_query_msg = LPStakingQueryMsg::Rewards {
         address: state.contract_address,
@@ -306,76 +277,96 @@ fn query_rewards<Q: Querier>(querier: &Q, env: Env, state: State) -> QueryResult
     to_binary(&rewards_response)
 }
 
-// fn withdraw<S: Storage, A: Api, Q: Querier>(
-//     deps: &mut Extern<S, A, Q>,
-//     env: Env,
-//     amount_of_shares: Uint128,
-// ) -> StdResult<HandleResponse> {
-//     let state: State = config_read(&deps.storage).load()?;
-//     // 1. Burn the tokens from the user
-//     let mut messages: Vec<CosmosMsg> = vec![snip20::burn_from_msg(
-//         env.message.sender.clone(),
-//         amount_of_shares,
-//         None,
-//         RESPONSE_BLOCK_SIZE,
-//         state.shares_token.contract_hash.clone(),
-//         state.shares_token.address.clone(),
-//     )?];
-//     let total_shares: u128 = query_balance(deps, state.shares_token)
-//         .unwrap()
-//         .u128();
-//     // 2. At this point we need to figure out how much of the token to withdraw from farm contract
-//     let amount_of_token: u128 = balance_of_pool(&deps.querier, env.clone(), state.clone()).unwrap()
-//         * amount_of_shares.u128()
-//         / total_shares;
-//     let total_locked_in_farm_contract: u128 =
-//         total_locked_in_farm_contract(&deps.querier, env.clone(), state.clone()).unwrap();
-//     let amount_to_withdraw_from_farm_contract: u128 =
-//         if amount_of_token > total_locked_in_farm_contract {
-//             total_locked_in_farm_contract
-//         } else {
-//             amount_of_token
-//         };
-//     messages.push(
-//         WasmMsg::Execute {
-//             contract_addr: state.farm_contract.address.clone(),
-//             callback_code_hash: state.farm_contract.contract_hash.clone(),
-//             msg: to_binary(&HandleMsg::Redeem {
-//                 amount: Uint128(amount_to_withdraw_from_farm_contract),
-//             })?,
-//             send: vec![],
-//         }
-//         .into(),
-//     );
-//     // 3. At this point we've got the withdrawal from the farm address and the unclaimed reward so it's time to transfer the token back to the user
-//     messages.push(secret_toolkit::snip20::transfer_msg(
-//         env.message.sender.clone(),
-//         Uint128(amount_of_token),
-//         None,
-//         RESPONSE_BLOCK_SIZE,
-//         state.token.contract_hash.clone(),
-//         state.token.address.clone(),
-//     )?);
+fn withdraw<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    from: HumanAddr,
+    amount_of_shares: u128,
+) -> StdResult<HandleResponse> {
+    let state: State = config_read(&deps.storage).load()?;
 
-//     // 4. Commission from claimed rewards
-//     // At this point the reward will be in the account and the performance fee will be sent to admin
-//     let commission: u128 =
-//         unclaimed_rewards(&deps.querier, env.clone(), state.clone()).unwrap() * 500 / 10_000;
-//     messages.push(secret_toolkit::snip20::transfer_msg(
-//         state.admin,
-//         Uint128(commission),
-//         None,
-//         RESPONSE_BLOCK_SIZE,
-//         state.token.contract_hash,
-//         state.token.address,
-//     )?);
+    // 1. Calculate balance
+    let unstaked_balance_of_contract: u128 =
+        match from_binary(&query_balance(deps, state.token.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let balance_in_farm_contract: u128 =
+        match from_binary(&query_balance(deps, state.farm_contract.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let rewards_response: LPStakingRewardsResponse =
+        from_binary(&query_rewards(&deps.querier, env, state.clone()).unwrap()).unwrap();
+    let unclaimed_rewards_of_contract = rewards_response.rewards.rewards.u128();
+    let balance_of_pool: u128 =
+        unstaked_balance_of_contract + balance_in_farm_contract + unclaimed_rewards_of_contract;
 
-//     Ok(HandleResponse {
-//         messages,
-//         log: vec![],
-//         data: Some(to_binary(&HandleAnswer::Redeem { status: Success })?),
-//     })
-// }
+    // 2. Calculate shares before send
+    let total_shares: u128 =
+        match from_binary(&query_balance(deps, state.shares_token.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let total_shares_before_send: u128 = total_shares + amount_of_shares;
+
+    // 3. Burn the tokens from the user
+    let mut messages: Vec<CosmosMsg> = vec![snip20::burn_msg(
+        Uint128(amount_of_shares),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.shares_token.contract_hash.clone(),
+        state.shares_token.address.clone(),
+    )?];
+
+    // 4. Calculate amount of token to withdraw from farm contract and to send
+    let amount_of_token: u128 = balance_of_pool * amount_of_shares / total_shares_before_send;
+    let amount_to_withdraw_from_farm_contract: u128 = if amount_of_token > balance_in_farm_contract
+    {
+        balance_in_farm_contract
+    } else {
+        amount_of_token
+    };
+    let redeem_msg = LPStakingHandleMsg::Redeem {
+        amount: Some(Uint128(amount_to_withdraw_from_farm_contract)),
+    };
+    let cosmos_msg = redeem_msg.to_cosmos_msg(
+        state.farm_contract.contract_hash.clone(),
+        state.farm_contract.address.clone(),
+        None,
+    )?;
+
+    // 5. Withdraw from farm contract
+    messages.push(cosmos_msg);
+
+    // 6. At this point we've got the withdrawal from the farm address and the unclaimed reward so it's time to transfer the token back to the user
+    messages.push(secret_toolkit::snip20::transfer_msg(
+        from,
+        Uint128(amount_of_token),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.token.contract_hash.clone(),
+        state.token.address.clone(),
+    )?);
+
+    // 7. Commission from claimed rewards
+    // At this point the reward will be in the account and the performance fee will be sent to reward contract
+    let fee: u128 = unclaimed_rewards_of_contract * 500 / 10_000;
+    messages.push(secret_toolkit::snip20::transfer_msg(
+        state.admin,
+        Uint128(fee),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.token.contract_hash,
+        state.token.address,
+    )?);
+
+    Ok(HandleResponse {
+        messages,
+        log: vec![],
+        data: Some(to_binary(&HandleAnswer::Redeem { status: Success })?),
+    })
+}
 
 #[cfg(test)]
 mod tests {
