@@ -2,15 +2,17 @@
 // Do we need governanceRecoverUnsupported in Secret Network?
 // Can you send unsupported coins in Secret Network or does the regeister stuff in init prevent that?
 use crate::msg::ResponseStatus::Success;
-use crate::msg::{HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg, ReceiveMsg};
+use crate::msg::{
+    HandleAnswer, HandleMsg, InitMsg, LPStakingQueryMsg, LPStakingReceiveMsg,
+    LPStakingRewardsResponse, QueryAnswer, QueryMsg, ReceiveMsg,
+};
 use crate::state::{config, config_read, SecretContract, State};
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, QueryRequest, QueryResult, StdError, StdResult, Storage, Uint128,
-    WasmQuery,
+    InitResponse, Querier, QueryResult, StdError, StdResult, Storage, Uint128,
 };
 use secret_toolkit::snip20;
-use secret_toolkit::utils::pad_handle_result;
+use secret_toolkit::utils::{pad_handle_result, Query};
 
 // === CONSTANTS ===
 pub const RESPONSE_BLOCK_SIZE: usize = 256;
@@ -24,6 +26,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         admin: env.message.sender.clone(),
         contract_address: env.contract.address,
         farm_contract: msg.farm_contract,
+        profit_sharing_contract: msg.profit_sharing_contract,
         token: msg.token.clone(),
         shares_token: msg.shares_token.clone(),
         viewing_key: msg.viewing_key.clone(),
@@ -97,31 +100,69 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     amount: u128,
 ) -> StdResult<HandleResponse> {
     let mut messages: Vec<CosmosMsg> = vec![];
-    // let state: State = config_read(&deps.storage).load()?;
-    // // 1. Calculate the user's share of the pool
+    let state: State = config_read(&deps.storage).load()?;
 
-    // // 2. Mint tokens for the user
-    // messages.push(secret_toolkit::snip20::mint_msg(
-    //     from,
-    //     Uint128(_shares_for_this_deposit),
-    //     None,
-    //     RESPONSE_BLOCK_SIZE,
-    //     state.shares_token.contract_hash,
-    //     state.shares_token.address,
-    // )?);
+    // 1. Calculate balance
+    let unstaked_balance_of_contract: u128 =
+        match from_binary(&query_balance(deps, state.token.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let balance_in_farm_contract: u128 =
+        match from_binary(&query_balance(deps, state.farm_contract.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let rewards_response: LPStakingRewardsResponse =
+        from_binary(&query_rewards(&deps.querier, env, state.clone()).unwrap()).unwrap();
+    let unclaimed_rewards_of_contract = rewards_response.rewards.rewards.u128();
+    let balance_of_pool: u128 =
+        unstaked_balance_of_contract + balance_in_farm_contract + unclaimed_rewards_of_contract;
 
-    // let total_shares: u128 = query_balance(deps, state.shares_token)
-    //     .unwrap()
-    //     .u128();
-    // let _shares_for_this_deposit: u128 = if total_shares == 0 {
-    //     amount
-    // } else {
-    //     let balance_of_pool_before_deposit =
-    //         balance_of_pool(&deps.querier, env.clone(), state.clone()).unwrap() - amount;
-    //     // 4. Shares for this deposit
-    //     amount * total_shares / balance_of_pool_before_deposit
-    // };
-    // deposit_into_farm_contract(deps, env.clone())?;
+    // 2. Calculate shares to give to user
+    let total_shares: u128 =
+        match from_binary(&query_balance(deps, state.shares_token.clone()).unwrap()).unwrap() {
+            QueryAnswer::Balance { amount } => amount.u128(),
+            _ => panic!("Unexpected result from handle"),
+        };
+    let shares_for_this_deposit: u128 = if total_shares == 0 {
+        amount
+    } else {
+        let balance_of_pool_before_deposit = balance_of_pool - amount;
+        amount / balance_of_pool_before_deposit * total_shares
+    };
+
+    // 3. Mint tokens for the user
+    messages.push(secret_toolkit::snip20::mint_msg(
+        from,
+        Uint128(shares_for_this_deposit),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.shares_token.contract_hash,
+        state.shares_token.address,
+    )?);
+
+    // 4. Send unstaked balance to farm contract (receive rewards at the same time)
+    messages.push(secret_toolkit::snip20::send_msg(
+        state.farm_contract.address.clone(),
+        Uint128(unstaked_balance_of_contract),
+        Some(to_binary(&LPStakingReceiveMsg::Deposit {})?),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.token.contract_hash.clone(),
+        state.token.address.clone(),
+    )?);
+
+    // 5. Calculate fees and send to profit sharing contract
+    let fees: u128 = unclaimed_rewards_of_contract * 500 / 10_000;
+    messages.push(secret_toolkit::snip20::transfer_msg(
+        state.profit_sharing_contract.address.clone(),
+        Uint128(fees),
+        None,
+        RESPONSE_BLOCK_SIZE,
+        state.token.contract_hash,
+        state.token.address,
+    )?);
 
     Ok(HandleResponse {
         messages,
@@ -129,48 +170,6 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
         data: None,
     })
 }
-
-// fn deposit_into_farm_contract<S: Storage, A: Api, Q: Querier>(
-//     deps: &mut Extern<S, A, Q>,
-//     env: Env,
-// ) -> StdResult<HandleResponse> {
-//     let state: State = config_read(&deps.storage).load()?;
-//     let mut messages: Vec<CosmosMsg> = vec![];
-//     let balance_of_this_contract: u128 =
-//         query_balance(deps, state.token).unwrap();
-//     messages.push(secret_toolkit::snip20::send_msg(
-//         state.farm_contract.address.clone(),
-//         Uint128(balance_of_this_contract),
-//         Some(to_binary(&HandleMsg::Receive {
-//             sender: env.contract.address.clone(),
-//             from: env.contract.address.clone(),
-//             amount: Uint128(balance_of_this_contract),
-//             msg: to_binary(&ReceiveMsg::Deposit {})?,
-//         })?),
-//         None,
-//         RESPONSE_BLOCK_SIZE,
-//         state.token.contract_hash.clone(),
-//         state.token.address.clone(),
-//     )?);
-
-//     // At this point the reward will be in the account and the performance fee will be sent to admin
-//     let commission: u128 =
-//         unclaimed_rewards(&deps.querier, env.clone(), state.clone()).unwrap() * 500 / 10_000;
-//     messages.push(secret_toolkit::snip20::transfer_msg(
-//         state.admin,
-//         Uint128(commission),
-//         None,
-//         RESPONSE_BLOCK_SIZE,
-//         state.token.contract_hash,
-//         state.token.address,
-//     )?);
-
-//     Ok(HandleResponse {
-//         messages,
-//         log: vec![],
-//         data: None,
-//     })
-// }
 
 fn enforce_admin(state: State, env: Env) -> StdResult<()> {
     if state.admin != env.message.sender {
@@ -292,38 +291,20 @@ fn stop_contract<S: Storage, A: Api, Q: Querier>(
 //     Ok(unclaimed_rewards + total_locked_in_farm_contract + balance_of_this_contract)
 // }
 
-// fn unclaimed_rewards<Q: Querier>(querier: &Q, env: Env, state: State) -> StdResult<u128> {
-//     querier
-//         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-//             contract_addr: state.farm_contract.address.clone(),
-//             callback_code_hash: state.farm_contract.contract_hash.clone(),
-//             msg: to_binary(&QueryMsg::Rewards {
-//                 address: env.contract.address.clone(),
-//                 key: state.viewing_key.clone(),
-//                 height: env.block.height,
-//             })?,
-//         }))
-//         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?
-// }
+fn query_rewards<Q: Querier>(querier: &Q, env: Env, state: State) -> QueryResult {
+    let rewards_query_msg = LPStakingQueryMsg::Rewards {
+        address: state.contract_address,
+        key: state.viewing_key,
+        height: env.block.height,
+    };
+    let rewards_response: LPStakingRewardsResponse = rewards_query_msg.query(
+        querier,
+        state.farm_contract.contract_hash,
+        state.farm_contract.address,
+    )?;
 
-// fn total_locked_in_farm_contract<Q: Querier>(
-//     querier: &Q,
-//     env: Env,
-//     state: State,
-// ) -> StdResult<u128> {
-//     let amount: u128 = querier
-//         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-//             contract_addr: state.farm_contract.address,
-//             callback_code_hash: state.farm_contract.contract_hash,
-//             msg: to_binary(&QueryMsg::Balance {
-//                 address: env.contract.address.clone(),
-//                 key: state.viewing_key.clone(),
-//             })?,
-//         }))
-//         .map_err(|err| StdError::generic_err(format!("Got an error from query: {:?}", err)))?;
-
-//     Ok(amount)
-// }
+    to_binary(&rewards_response)
+}
 
 // fn withdraw<S: Storage, A: Api, Q: Querier>(
 //     deps: &mut Extern<S, A, Q>,
@@ -417,6 +398,10 @@ mod tests {
             farm_contract: SecretContract {
                 address: HumanAddr("farm-contract-address".to_string()),
                 contract_hash: "farm-contract-hash".to_string(),
+            },
+            profit_sharing_contract: SecretContract {
+                address: HumanAddr("profit-sharing-contract-address".to_string()),
+                contract_hash: "profit-sharing-contract-hash".to_string(),
             },
             token: SecretContract {
                 address: HumanAddr("token-contract-address".to_string()),

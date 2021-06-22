@@ -16,6 +16,7 @@ pub struct State {
     pub contract_address: HumanAddr,
     // e.g. SEFI staking contract
     pub farm_contract: SecretContract,
+    pub profit_sharing_contract: SecretContract,
     // incentivized_token and reward_token will be the same in this contract
     pub token: SecretContract,
     pub shares_token: SecretContract,

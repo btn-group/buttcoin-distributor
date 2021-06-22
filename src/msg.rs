@@ -1,7 +1,37 @@
+use crate::contract::RESPONSE_BLOCK_SIZE;
 use crate::state::SecretContract;
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
+use secret_toolkit::utils::Query;
 use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LPStakingQueryMsg {
+    Rewards {
+        address: HumanAddr,
+        key: String,
+        height: u64,
+    },
+}
+impl Query for LPStakingQueryMsg {
+    const BLOCK_SIZE: usize = RESPONSE_BLOCK_SIZE;
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub enum LPStakingReceiveMsg {
+    Deposit {},
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct LPStakingRewardsResponse {
+    pub rewards: Rewards,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct Rewards {
+    pub rewards: Uint128,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +56,7 @@ pub enum HandleMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub farm_contract: SecretContract,
+    pub profit_sharing_contract: SecretContract,
     pub token: SecretContract,
     pub shares_token: SecretContract,
     pub viewing_key: String,
@@ -50,12 +81,6 @@ pub enum ReceiveMsg {
 pub enum QueryMsg {
     Balance { token: SecretContract },
     Config {},
-    // Authenticated
-    // Rewards {
-    //     address: HumanAddr,
-    //     key: String,
-    //     height: u64,
-    // },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
@@ -70,9 +95,6 @@ pub enum QueryAnswer {
     },
 
     // Authenticated
-    Rewards {
-        rewards: Uint128,
-    },
     Balance {
         amount: Uint128,
     },
