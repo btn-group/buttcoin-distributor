@@ -19,8 +19,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
+    let buttcoin = SecretContract {
+        address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
+        contract_hash: "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
+            .to_string(),
+    };
+
     let state: State = State {
         admin: env.message.sender.clone(),
+        buttcoin: buttcoin,
         contract_address: env.contract.address,
         farm_contract: msg.farm_contract,
         profit_sharing_contract: msg.profit_sharing_contract,
@@ -82,7 +89,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Receive {
             from, amount, msg, ..
         } => receive(deps, env, from, amount.u128(), msg),
-        // HandleMsg::Redeem { amount } => withdraw(deps, env, amount),
         HandleMsg::StopContract {} => stop_contract(deps, env),
         _ => Err(StdError::generic_err("Unavailable or unknown action")),
     };
@@ -376,7 +382,7 @@ mod tests {
     use cosmwasm_std::QueryResponse;
     use std::any::Any;
 
-    //=== HELPER FUNCTIONS ===
+    // === HELPER FUNCTIONS ===
 
     fn init_helper() -> (
         StdResult<InitResponse>,
@@ -437,7 +443,7 @@ mod tests {
         }
     }
 
-    // Init tests
+    // === INIT TESTS ===
 
     #[test]
     fn test_init_sanity() {
@@ -480,7 +486,8 @@ mod tests {
         );
     }
 
-    //=== Handle tests ===
+    // === HANDLE TESTS ===
+
     #[test]
     fn test_handle_admin_commands() {
         let admin_err = "not an admin".to_string();
@@ -523,7 +530,8 @@ mod tests {
         assert!(ensure_success(result));
     }
 
-    //=== QUERY TESTS ===
+    // === QUERY TESTS ===
+
     #[test]
     fn test_query_config() {
         let (_init_result, deps) = init_helper();

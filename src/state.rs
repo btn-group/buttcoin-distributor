@@ -13,6 +13,7 @@ pub struct SecretContract {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
+    pub buttcoin: SecretContract,
     pub contract_address: HumanAddr,
     // e.g. SEFI staking contract
     pub farm_contract: SecretContract,

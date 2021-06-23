@@ -5,6 +5,25 @@
     {
       "type": "object",
       "required": [
+        "balance"
+      ],
+      "properties": {
+        "balance": {
+          "type": "object",
+          "required": [
+            "token"
+          ],
+          "properties": {
+            "token": {
+              "$ref": "#/definitions/SecretContract"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "config"
       ],
       "properties": {
@@ -12,63 +31,26 @@
           "type": "object"
         }
       }
-    },
-    {
-      "type": "object",
-      "required": [
-        "rewards"
-      ],
-      "properties": {
-        "rewards": {
-          "type": "object",
-          "required": [
-            "address",
-            "height",
-            "key"
-          ],
-          "properties": {
-            "address": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "key": {
-              "type": "string"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "balance"
-      ],
-      "properties": {
-        "balance": {
-          "type": "object",
-          "required": [
-            "address",
-            "key"
-          ],
-          "properties": {
-            "address": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "key": {
-              "type": "string"
-            }
-          }
-        }
-      }
     }
   ],
   "definitions": {
     "HumanAddr": {
       "type": "string"
+    },
+    "SecretContract": {
+      "type": "object",
+      "required": [
+        "address",
+        "contract_hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "contract_hash": {
+          "type": "string"
+        }
+      }
     }
   }
 }
