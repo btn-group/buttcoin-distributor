@@ -82,29 +82,6 @@
     {
       "type": "object",
       "required": [
-        "set_gov_token"
-      ],
-      "properties": {
-        "set_gov_token": {
-          "type": "object",
-          "required": [
-            "addr",
-            "hash"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "hash": {
-              "type": "string"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "change_admin"
       ],
       "properties": {

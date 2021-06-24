@@ -16,17 +16,6 @@
     {
       "type": "object",
       "required": [
-        "gov_token"
-      ],
-      "properties": {
-        "gov_token": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "schedule"
       ],
       "properties": {

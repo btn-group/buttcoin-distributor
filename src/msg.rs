@@ -22,8 +22,8 @@ pub enum LPStakingResponseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MasterInitMsg {
-    pub gov_token_addr: HumanAddr,
-    pub gov_token_hash: String,
+    pub buttcoin_address: HumanAddr,
+    pub buttcoin_contract_hash: String,
     pub minting_schedule: Schedule,
 }
 
@@ -43,10 +43,6 @@ pub enum MasterHandleMsg {
     SetSchedule {
         schedule: Schedule,
     },
-    SetGovToken {
-        addr: HumanAddr,
-        hash: String,
-    },
     ChangeAdmin {
         addr: HumanAddr,
     },
@@ -63,7 +59,6 @@ pub enum MasterHandleAnswer {
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryMsg {
     Admin {},
-    GovToken {},
     Schedule {},
     SpyWeight { addr: HumanAddr },
     Pending { spy_addr: HumanAddr, block: u64 },
@@ -72,20 +67,8 @@ pub enum MasterQueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryAnswer {
-    Admin {
-        address: HumanAddr,
-    },
-    GovToken {
-        token_addr: HumanAddr,
-        token_hash: String,
-    },
-    Schedule {
-        schedule: Schedule,
-    },
-    SpyWeight {
-        weight: u64,
-    },
-    Pending {
-        amount: Uint128,
-    },
+    Admin { address: HumanAddr },
+    Schedule { schedule: Schedule },
+    SpyWeight { weight: u64 },
+    Pending { amount: Uint128 },
 }

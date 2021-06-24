@@ -32,8 +32,8 @@ pub fn sort_schedule(s: &mut Schedule) {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub admin: HumanAddr,
-    pub gov_token_addr: HumanAddr,
-    pub gov_token_hash: String,
+    pub buttcoin_address: HumanAddr,
+    pub buttcoin_contract_hash: String,
     pub total_weight: u64,
     pub minting_schedule: Schedule,
 }

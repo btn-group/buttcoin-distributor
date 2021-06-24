@@ -2,7 +2,9 @@ use crate::msg::{
     LPStakingHandleMsg, MasterHandleAnswer, MasterHandleMsg, MasterInitMsg, MasterQueryAnswer,
     MasterQueryMsg,
 };
-use crate::state::{config, config_read, sort_schedule, Schedule, SpySettings, State, WeightInfo};
+use crate::state::{
+    config, config_read, sort_schedule, Schedule, SecretContract, SpySettings, State, WeightInfo,
+};
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
     StdError, StdResult, Storage, Uint128, WasmMsg,
@@ -19,10 +21,16 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let mut mint_schedule = msg.minting_schedule;
     sort_schedule(&mut mint_schedule);
 
+    let buttcoin = SecretContract {
+        address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
+        contract_hash: "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
+            .to_string(),
+    };
+
     let state = State {
         admin: env.message.sender,
-        gov_token_addr: msg.gov_token_addr,
-        gov_token_hash: msg.gov_token_hash,
+        buttcoin_address: buttcoin.address,
+        buttcoin_contract_hash: buttcoin.contract_hash,
         total_weight: 0,
         minting_schedule: mint_schedule,
     };
@@ -45,7 +53,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => update_allocation(deps, env, spy_addr, spy_hash, hook),
         MasterHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
         MasterHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
-        MasterHandleMsg::SetGovToken { addr, hash } => set_gov_token(deps, env, addr, hash),
         MasterHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
     }
 }
@@ -112,8 +119,8 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
                 Uint128(rewards),
                 None,
                 1,
-                state.gov_token_hash.clone(),
-                state.gov_token_addr.clone(),
+                state.buttcoin_contract_hash.clone(),
+                state.buttcoin_address.clone(),
             )?);
 
             // Notify to the spy contract on the new allocation
@@ -186,8 +193,8 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
             Uint128(rewards),
             None,
             1,
-            state.gov_token_hash.clone(),
-            state.gov_token_addr,
+            state.buttcoin_contract_hash.clone(),
+            state.buttcoin_address,
         )?);
 
         spy_settings.last_update_block = env.block.height;
@@ -211,28 +218,6 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![log("update_allocation", spy_address.0)],
-        data: Some(to_binary(&MasterHandleAnswer::Success)?),
-    })
-}
-
-fn set_gov_token<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    gov_addr: HumanAddr,
-    gov_hash: String,
-) -> StdResult<HandleResponse> {
-    let mut state = config_read(&deps.storage).load()?;
-
-    enforce_admin(state.clone(), env)?;
-
-    state.gov_token_addr = gov_addr.clone();
-    state.gov_token_hash = gov_hash;
-
-    config(&mut deps.storage).save(&state)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("set_gov_token", gov_addr.0)],
         data: Some(to_binary(&MasterHandleAnswer::Success)?),
     })
 }
@@ -263,7 +248,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         MasterQueryMsg::Admin {} => to_binary(&query_admin(deps)?),
-        MasterQueryMsg::GovToken {} => to_binary(&query_gov_token(deps)?),
         MasterQueryMsg::Schedule {} => to_binary(&query_schedule(deps)?),
         MasterQueryMsg::SpyWeight { addr } => to_binary(&query_spy_weight(deps, addr)?),
         MasterQueryMsg::Pending { spy_addr, block } => {
@@ -279,17 +263,6 @@ fn query_admin<S: Storage, A: Api, Q: Querier>(
 
     Ok(MasterQueryAnswer::Admin {
         address: state.admin,
-    })
-}
-
-fn query_gov_token<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<MasterQueryAnswer> {
-    let state = config_read(&deps.storage).load()?;
-
-    Ok(MasterQueryAnswer::GovToken {
-        token_addr: state.gov_token_addr,
-        token_hash: state.gov_token_hash,
     })
 }
 
