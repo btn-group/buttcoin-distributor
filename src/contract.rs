@@ -247,7 +247,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         MasterQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
-        MasterQueryMsg::Schedule {} => to_binary(&query_schedule(deps)?),
         MasterQueryMsg::SpyWeight { addr } => to_binary(&query_spy_weight(deps, addr)?),
         MasterQueryMsg::Pending { spy_addr, block } => {
             to_binary(&query_pending_rewards(deps, spy_addr, block)?)
@@ -263,15 +262,6 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
     Ok(MasterQueryAnswer::Config {
         admin: state.admin,
         buttcoin: state.buttcoin,
-    })
-}
-
-fn query_schedule<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<MasterQueryAnswer> {
-    let state = config_read(&deps.storage).load()?;
-
-    Ok(MasterQueryAnswer::Schedule {
         schedule: state.minting_schedule,
     })
 }
