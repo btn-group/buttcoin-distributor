@@ -58,7 +58,6 @@ pub enum MasterHandleAnswer {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryMsg {
-    Admin {},
     Schedule {},
     SpyWeight { addr: HumanAddr },
     Pending { spy_addr: HumanAddr, block: u64 },
@@ -67,7 +66,6 @@ pub enum MasterQueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryAnswer {
-    Admin { address: HumanAddr },
     Schedule { schedule: Schedule },
     SpyWeight { weight: u64 },
     Pending { amount: Uint128 },

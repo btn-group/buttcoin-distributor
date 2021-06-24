@@ -247,23 +247,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: MasterQueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        MasterQueryMsg::Admin {} => to_binary(&query_admin(deps)?),
         MasterQueryMsg::Schedule {} => to_binary(&query_schedule(deps)?),
         MasterQueryMsg::SpyWeight { addr } => to_binary(&query_spy_weight(deps, addr)?),
         MasterQueryMsg::Pending { spy_addr, block } => {
             to_binary(&query_pending_rewards(deps, spy_addr, block)?)
         }
     }
-}
-
-fn query_admin<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<MasterQueryAnswer> {
-    let state = config_read(&deps.storage).load()?;
-
-    Ok(MasterQueryAnswer::Admin {
-        address: state.admin,
-    })
 }
 
 fn query_schedule<S: Storage, A: Api, Q: Querier>(
