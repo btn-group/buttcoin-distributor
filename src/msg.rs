@@ -1,120 +1,91 @@
-use crate::contract::RESPONSE_BLOCK_SIZE;
-use crate::state::SecretContract;
+use crate::state::{Schedule, WeightInfo};
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
-use secret_toolkit::utils::{HandleCallback, Query};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LPStakingHandleMsg {
-    Redeem { amount: Option<Uint128> },
-}
-impl HandleCallback for LPStakingHandleMsg {
-    const BLOCK_SIZE: usize = RESPONSE_BLOCK_SIZE;
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum LPStakingQueryMsg {
-    Rewards {
-        address: HumanAddr,
-        key: String,
-        height: u64,
-    },
-}
-impl Query for LPStakingQueryMsg {
-    const BLOCK_SIZE: usize = RESPONSE_BLOCK_SIZE;
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-pub enum LPStakingReceiveMsg {
-    Deposit {},
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-pub struct LPStakingRewardsResponse {
-    pub rewards: Rewards,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-pub struct Rewards {
-    pub rewards: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
-    Redeem {
+    // Master callbacks
+    NotifyAllocation {
         amount: Uint128,
-    },
-
-    // Registered commands
-    Receive {
-        sender: HumanAddr,
-        from: HumanAddr,
-        amount: Uint128,
-        msg: Binary,
-    },
-
-    // Admin commands
-    StopContract {},
-    ResumeContract {},
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub farm_contract: SecretContract,
-    pub profit_sharing_contract: SecretContract,
-    pub token: SecretContract,
-    pub shares_token: SecretContract,
-    pub viewing_key: String,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleAnswer {
-    Redeem { status: ResponseStatus },
-    StopContract { status: ResponseStatus },
-    ResumeContract { status: ResponseStatus },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ReceiveMsg {
-    Deposit {},
-    Withdraw {},
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
-    Balance { token: SecretContract },
-    Config {},
-}
-
-#[derive(Serialize, Deserialize, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
-    Config {
-        admin: HumanAddr,
-        stopped: bool,
-        farm_contract: SecretContract,
-        shares_token: SecretContract,
-        token: SecretContract,
-    },
-
-    // Authenticated
-    Balance {
-        amount: Uint128,
-    },
-    ViewingKeyError {
-        msg: String,
+        hook: Option<Binary>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ResponseStatus {
+pub enum LPStakingResponseStatus {
     Success,
+    Failure,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MasterInitMsg {
+    pub gov_token_addr: HumanAddr,
+    pub gov_token_hash: String,
+    pub minting_schedule: Schedule,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MasterHandleMsg {
+    UpdateAllocation {
+        spy_addr: HumanAddr,
+        spy_hash: String,
+        hook: Option<Binary>,
+    },
+
+    // Admin commands
+    SetWeights {
+        weights: Vec<WeightInfo>,
+    },
+    SetSchedule {
+        schedule: Schedule,
+    },
+    SetGovToken {
+        addr: HumanAddr,
+        hash: String,
+    },
+    ChangeAdmin {
+        addr: HumanAddr,
+    },
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum MasterHandleAnswer {
+    Success,
+    Failure,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MasterQueryMsg {
+    Admin {},
+    GovToken {},
+    Schedule {},
+    SpyWeight { addr: HumanAddr },
+    Pending { spy_addr: HumanAddr, block: u64 },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MasterQueryAnswer {
+    Admin {
+        address: HumanAddr,
+    },
+    GovToken {
+        token_addr: HumanAddr,
+        token_hash: String,
+    },
+    Schedule {
+        schedule: Schedule,
+    },
+    SpyWeight {
+        weight: u64,
+    },
+    Pending {
+        amount: Uint128,
+    },
 }
