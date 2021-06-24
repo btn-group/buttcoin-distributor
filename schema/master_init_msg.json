@@ -3,17 +3,9 @@
   "title": "MasterInitMsg",
   "type": "object",
   "required": [
-    "buttcoin_address",
-    "buttcoin_contract_hash",
     "minting_schedule"
   ],
   "properties": {
-    "buttcoin_address": {
-      "$ref": "#/definitions/HumanAddr"
-    },
-    "buttcoin_contract_hash": {
-      "type": "string"
-    },
     "minting_schedule": {
       "type": "array",
       "items": {
@@ -22,9 +14,6 @@
     }
   },
   "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    },
     "ScheduleUnit": {
       "type": "object",
       "required": [

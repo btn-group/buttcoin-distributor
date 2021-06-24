@@ -1,4 +1,4 @@
-use crate::state::{Schedule, WeightInfo};
+use crate::state::{Schedule, SecretContract, WeightInfo};
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,6 @@ pub enum LPStakingResponseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MasterInitMsg {
-    pub buttcoin_address: HumanAddr,
-    pub buttcoin_contract_hash: String,
     pub minting_schedule: Schedule,
 }
 
@@ -58,6 +56,7 @@ pub enum MasterHandleAnswer {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryMsg {
+    Config {},
     Schedule {},
     SpyWeight { addr: HumanAddr },
     Pending { spy_addr: HumanAddr, block: u64 },
@@ -66,7 +65,17 @@ pub enum MasterQueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryAnswer {
-    Schedule { schedule: Schedule },
-    SpyWeight { weight: u64 },
-    Pending { amount: Uint128 },
+    Config {
+        admin: HumanAddr,
+        buttcoin: SecretContract,
+    },
+    Schedule {
+        schedule: Schedule,
+    },
+    SpyWeight {
+        weight: u64,
+    },
+    Pending {
+        amount: Uint128,
+    },
 }

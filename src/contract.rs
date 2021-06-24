@@ -29,8 +29,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     let state = State {
         admin: env.message.sender,
-        buttcoin_address: buttcoin.address,
-        buttcoin_contract_hash: buttcoin.contract_hash,
+        buttcoin: buttcoin,
         total_weight: 0,
         minting_schedule: mint_schedule,
     };
@@ -119,8 +118,8 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
                 Uint128(rewards),
                 None,
                 1,
-                state.buttcoin_contract_hash.clone(),
-                state.buttcoin_address.clone(),
+                state.buttcoin.contract_hash.clone(),
+                state.buttcoin.address.clone(),
             )?);
 
             // Notify to the spy contract on the new allocation
@@ -193,8 +192,8 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
             Uint128(rewards),
             None,
             1,
-            state.buttcoin_contract_hash.clone(),
-            state.buttcoin_address,
+            state.buttcoin.contract_hash.clone(),
+            state.buttcoin.address,
         )?);
 
         spy_settings.last_update_block = env.block.height;
@@ -247,12 +246,24 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: MasterQueryMsg,
 ) -> StdResult<Binary> {
     match msg {
+        MasterQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
         MasterQueryMsg::Schedule {} => to_binary(&query_schedule(deps)?),
         MasterQueryMsg::SpyWeight { addr } => to_binary(&query_spy_weight(deps, addr)?),
         MasterQueryMsg::Pending { spy_addr, block } => {
             to_binary(&query_pending_rewards(deps, spy_addr, block)?)
         }
     }
+}
+
+fn query_public_config<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<MasterQueryAnswer> {
+    let state: State = config_read(&deps.storage).load()?;
+
+    Ok(MasterQueryAnswer::Config {
+        admin: state.admin,
+        buttcoin: state.buttcoin,
+    })
 }
 
 fn query_schedule<S: Storage, A: Api, Q: Querier>(

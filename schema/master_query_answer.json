@@ -5,6 +5,29 @@
     {
       "type": "object",
       "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "required": [
+            "admin",
+            "buttcoin"
+          ],
+          "properties": {
+            "admin": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "buttcoin": {
+              "$ref": "#/definitions/SecretContract"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "schedule"
       ],
       "properties": {
@@ -66,6 +89,9 @@
     }
   ],
   "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
     "ScheduleUnit": {
       "type": "object",
       "required": [
@@ -80,6 +106,21 @@
         },
         "mint_per_block": {
           "$ref": "#/definitions/Uint128"
+        }
+      }
+    },
+    "SecretContract": {
+      "type": "object",
+      "required": [
+        "address",
+        "contract_hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "contract_hash": {
+          "type": "string"
         }
       }
     },
