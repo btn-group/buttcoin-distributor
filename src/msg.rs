@@ -57,7 +57,6 @@ pub enum MasterHandleAnswer {
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryMsg {
     Config {},
-    Schedule {},
     SpyWeight { addr: HumanAddr },
     Pending { spy_addr: HumanAddr, block: u64 },
 }
@@ -68,8 +67,6 @@ pub enum MasterQueryAnswer {
     Config {
         admin: HumanAddr,
         buttcoin: SecretContract,
-    },
-    Schedule {
         schedule: Schedule,
     },
     SpyWeight {

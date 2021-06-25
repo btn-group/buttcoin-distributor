@@ -12,7 +12,8 @@
           "type": "object",
           "required": [
             "admin",
-            "buttcoin"
+            "buttcoin",
+            "schedule"
           ],
           "properties": {
             "admin": {
@@ -20,23 +21,7 @@
             },
             "buttcoin": {
               "$ref": "#/definitions/SecretContract"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "schedule"
-      ],
-      "properties": {
-        "schedule": {
-          "type": "object",
-          "required": [
-            "schedule"
-          ],
-          "properties": {
+            },
             "schedule": {
               "type": "array",
               "items": {

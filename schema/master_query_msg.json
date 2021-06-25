@@ -16,17 +16,6 @@
     {
       "type": "object",
       "required": [
-        "schedule"
-      ],
-      "properties": {
-        "schedule": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "spy_weight"
       ],
       "properties": {
