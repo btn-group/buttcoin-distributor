@@ -8,7 +8,7 @@ use crate::state::{
 };
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
-    StdError, StdResult, Storage, Uint128, WasmMsg,
+    StdError, StdResult, Storage, Uint128,
 };
 use secret_toolkit::snip20;
 use secret_toolkit::storage::{TypedStore, TypedStoreMut};
@@ -63,15 +63,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         MasterHandleMsg::UpdateAllocation {
             receivable_contract_address,
-            receivable_contract_hash,
             hook,
-        } => update_allocation(
-            deps,
-            env,
-            receivable_contract_address,
-            receivable_contract_hash,
-            hook,
-        ),
+        } => update_allocation(deps, env, receivable_contract_address, hook),
         MasterHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
         MasterHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
         MasterHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
@@ -140,26 +133,15 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
             messages.push(snip20::send_msg(
                 to_update.address.clone(),
                 Uint128(rewards),
-                None,
+                Some(to_binary(&LPStakingHandleMsg::NotifyAllocation {
+                    amount: Uint128(rewards),
+                    hook: None,
+                })?),
                 None,
                 1,
                 state.buttcoin.contract_hash.clone(),
                 state.buttcoin.address.clone(),
             )?);
-
-            // Notify to the receivable_contract contract on the new allocation
-            messages.push(
-                WasmMsg::Execute {
-                    contract_addr: to_update.address.clone(),
-                    callback_code_hash: to_update.hash,
-                    msg: to_binary(&LPStakingHandleMsg::NotifyAllocation {
-                        amount: Uint128(rewards),
-                        hook: None,
-                    })?,
-                    send: vec![],
-                }
-                .into(),
-            );
         }
 
         let old_weight = receivable_contract_settings.weight;
@@ -194,7 +176,6 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     receivable_contract_address: HumanAddr,
-    receivable_contract_hash: String,
     hook: Option<Binary>,
 ) -> StdResult<HandleResponse> {
     let state = config_read(&deps.storage).load()?;
@@ -219,15 +200,6 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
             &state.release_schedule,
             receivable_contract_settings.clone(),
         );
-        messages.push(snip20::send_msg(
-            receivable_contract_address.clone(),
-            Uint128(rewards),
-            None,
-            None,
-            1,
-            state.buttcoin.contract_hash.clone(),
-            state.buttcoin.address,
-        )?);
 
         receivable_contract_settings.last_update_block = env.block.height;
         rs.store(
@@ -236,19 +208,18 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
         )?;
     }
 
-    // Notify to the receivable contract on the new allocation
-    messages.push(
-        WasmMsg::Execute {
-            contract_addr: receivable_contract_address.clone(),
-            callback_code_hash: receivable_contract_hash,
-            msg: to_binary(&LPStakingHandleMsg::NotifyAllocation {
-                amount: Uint128(rewards),
-                hook,
-            })?,
-            send: vec![],
-        }
-        .into(),
-    );
+    messages.push(snip20::send_msg(
+        receivable_contract_address.clone(),
+        Uint128(rewards),
+        Some(to_binary(&LPStakingHandleMsg::NotifyAllocation {
+            amount: Uint128(rewards),
+            hook,
+        })?),
+        None,
+        1,
+        state.buttcoin.contract_hash.clone(),
+        state.buttcoin.address,
+    )?);
 
     Ok(HandleResponse {
         messages,
