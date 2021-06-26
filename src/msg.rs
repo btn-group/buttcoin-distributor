@@ -68,6 +68,8 @@ pub enum MasterQueryAnswer {
         admin: HumanAddr,
         buttcoin: SecretContract,
         schedule: Schedule,
+        total_weight: u64,
+        viewing_key: String,
     },
     SpyWeight {
         weight: u64,

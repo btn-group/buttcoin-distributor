@@ -17,7 +17,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: MasterInitMsg,
 ) -> StdResult<InitResponse> {
-    // The impl. later on relies on the schedule being sorted
     let mut mint_schedule = msg.minting_schedule;
     sort_schedule(&mut mint_schedule);
 
@@ -26,17 +25,33 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         contract_hash: "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
             .to_string(),
     };
-
+    // We are going to publicly expose the viewing key for this contract because
+    // the transfers are only between the admin to this contract and from this contract to
+    // sub contracts such as yield optimizers.
+    // None of this information will expose user's transactions etc.
+    let viewing_key = "api_key_ButtcoinDistributor=".to_string();
     let state = State {
         admin: env.message.sender,
-        buttcoin: buttcoin,
+        buttcoin: buttcoin.clone(),
         total_weight: 0,
         minting_schedule: mint_schedule,
+        viewing_key: viewing_key.clone(),
     };
 
     config(&mut deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    let messages = vec![snip20::set_viewing_key_msg(
+        viewing_key,
+        None,
+        1,
+        buttcoin.contract_hash,
+        buttcoin.address,
+    )?];
+
+    Ok(InitResponse {
+        messages,
+        log: vec![],
+    })
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -263,6 +278,8 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
         admin: state.admin,
         buttcoin: state.buttcoin,
         schedule: state.minting_schedule,
+        total_weight: state.total_weight,
+        viewing_key: state.viewing_key,
     })
 }
 
