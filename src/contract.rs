@@ -1,7 +1,4 @@
-use crate::msg::{
-    LPStakingHandleMsg, MasterHandleAnswer, MasterHandleMsg, MasterInitMsg, MasterQueryAnswer,
-    MasterQueryMsg,
-};
+use crate::msg::{HandleAnswer, HandleMsg, InitMsg, LPStakingHandleMsg, QueryAnswer, QueryMsg};
 use crate::state::{
     config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
     State, WeightInfo,
@@ -16,7 +13,7 @@ use secret_toolkit::storage::{TypedStore, TypedStoreMut};
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: MasterInitMsg,
+    msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let mut release_schedule = msg.release_schedule;
     sort_schedule(&mut release_schedule);
@@ -58,16 +55,16 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: MasterHandleMsg,
+    msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        MasterHandleMsg::UpdateAllocation {
+        HandleMsg::UpdateAllocation {
             receivable_contract_address,
             hook,
         } => update_allocation(deps, env, receivable_contract_address, hook),
-        MasterHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
-        MasterHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
-        MasterHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
+        HandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
+        HandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
+        HandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
     }
 }
 
@@ -90,7 +87,7 @@ fn set_schedule<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&MasterHandleAnswer::Success)?),
+        data: Some(to_binary(&HandleAnswer::Success)?),
     })
 }
 
@@ -168,7 +165,7 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: logs,
-        data: Some(to_binary(&MasterHandleAnswer::Success)?),
+        data: Some(to_binary(&HandleAnswer::Success)?),
     })
 }
 
@@ -224,7 +221,7 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![log("update_allocation", receivable_contract_address.0)],
-        data: Some(to_binary(&MasterHandleAnswer::Success)?),
+        data: Some(to_binary(&HandleAnswer::Success)?),
     })
 }
 
@@ -244,20 +241,20 @@ fn change_admin<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&MasterHandleAnswer::Success)?),
+        data: Some(to_binary(&HandleAnswer::Success)?),
     })
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    msg: MasterQueryMsg,
+    msg: QueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        MasterQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
-        MasterQueryMsg::ReceivableContractWeight { addr } => {
+        QueryMsg::Config {} => to_binary(&query_public_config(deps)?),
+        QueryMsg::ReceivableContractWeight { addr } => {
             to_binary(&query_receivable_contract_weight(deps, addr)?)
         }
-        MasterQueryMsg::Pending {
+        QueryMsg::Pending {
             receivable_contract_address,
             block,
         } => to_binary(&query_pending_rewards(
@@ -270,10 +267,10 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 
 fn query_public_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<MasterQueryAnswer> {
+) -> StdResult<QueryAnswer> {
     let state: State = config_read(&deps.storage).load()?;
 
-    Ok(MasterQueryAnswer::Config {
+    Ok(QueryAnswer::Config {
         admin: state.admin,
         buttcoin: state.buttcoin,
         schedule: state.release_schedule,
@@ -285,7 +282,7 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
 fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     receivable_contract_address: HumanAddr,
-) -> StdResult<MasterQueryAnswer> {
+) -> StdResult<QueryAnswer> {
     let receivable_contract = TypedStore::attach(&deps.storage)
         .load(receivable_contract_address.0.as_bytes())
         .unwrap_or(ReceivableContractSettings {
@@ -293,7 +290,7 @@ fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
             last_update_block: 0,
         });
 
-    Ok(MasterQueryAnswer::ReceivableContractWeight {
+    Ok(QueryAnswer::ReceivableContractWeight {
         weight: receivable_contract.weight,
     })
 }
@@ -302,7 +299,7 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     receivable_contract_addr: HumanAddr,
     block: u64,
-) -> StdResult<MasterQueryAnswer> {
+) -> StdResult<QueryAnswer> {
     let state = config_read(&deps.storage).load()?;
     let receivable_contract = TypedStore::attach(&deps.storage)
         .load(receivable_contract_addr.0.as_bytes())
@@ -318,7 +315,7 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
         receivable_contract,
     );
 
-    Ok(MasterQueryAnswer::Pending {
+    Ok(QueryAnswer::Pending {
         amount: Uint128(amount),
     })
 }
