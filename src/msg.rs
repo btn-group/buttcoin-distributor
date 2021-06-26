@@ -30,7 +30,6 @@ pub struct MasterInitMsg {
 pub enum MasterHandleMsg {
     UpdateAllocation {
         receivable_contract_address: HumanAddr,
-        receivable_contract_hash: String,
         hook: Option<Binary>,
     },
 

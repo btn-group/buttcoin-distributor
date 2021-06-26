@@ -11,8 +11,7 @@
         "update_allocation": {
           "type": "object",
           "required": [
-            "receivable_contract_address",
-            "receivable_contract_hash"
+            "receivable_contract_address"
           ],
           "properties": {
             "hook": {
@@ -27,9 +26,6 @@
             },
             "receivable_contract_address": {
               "$ref": "#/definitions/HumanAddr"
-            },
-            "receivable_contract_hash": {
-              "type": "string"
             }
           }
         }
