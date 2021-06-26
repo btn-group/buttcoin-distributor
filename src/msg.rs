@@ -23,7 +23,7 @@ pub struct InitMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ButtcoinDistributorHandleMsg {
     ClaimButtcoin {
         receivable_contract_address: HumanAddr,
         hook: Option<Binary>,

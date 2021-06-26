@@ -1,4 +1,6 @@
-use crate::msg::{HandleAnswer, HandleMsg, InitMsg, LPStakingHandleMsg, QueryAnswer, QueryMsg};
+use crate::msg::{
+    ButtcoinDistributorHandleMsg, HandleAnswer, InitMsg, LPStakingHandleMsg, QueryAnswer, QueryMsg,
+};
 use crate::state::{
     config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
     State, WeightInfo,
@@ -55,16 +57,16 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    msg: HandleMsg,
+    msg: ButtcoinDistributorHandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::ClaimButtcoin {
+        ButtcoinDistributorHandleMsg::ClaimButtcoin {
             receivable_contract_address,
             hook,
         } => claim_buttcoin(deps, env, receivable_contract_address, hook),
-        HandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
-        HandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
-        HandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
+        ButtcoinDistributorHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
+        ButtcoinDistributorHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
+        ButtcoinDistributorHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
     }
 }
 
@@ -442,7 +444,7 @@ mod tests {
             init_result.err().unwrap()
         );
 
-        let handle_msg = HandleMsg::ChangeAdmin {
+        let handle_msg = ButtcoinDistributorHandleMsg::ChangeAdmin {
             addr: HumanAddr("bob".to_string()),
         };
         let handle_result = handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg);
@@ -481,7 +483,7 @@ mod tests {
             },
         ];
 
-        let handle_msg = HandleMsg::SetSchedule {
+        let handle_msg = ButtcoinDistributorHandleMsg::SetSchedule {
             schedule: new_release_schedule.clone(),
         };
 
@@ -515,7 +517,7 @@ mod tests {
             init_result.err().unwrap()
         );
 
-        let handle_msg = HandleMsg::SetWeights {
+        let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
             weights: vec![WeightInfo {
                 address: HumanAddr::from("sefistakingoptimizeraddress"),
                 hash: "sefistakingoptimizerhash".to_string(),
