@@ -17,8 +17,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: MasterInitMsg,
 ) -> StdResult<InitResponse> {
-    let mut mint_schedule = msg.minting_schedule;
-    sort_schedule(&mut mint_schedule);
+    let mut release_schedule = msg.release_schedule;
+    sort_schedule(&mut release_schedule);
 
     let buttcoin = SecretContract {
         address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
@@ -34,7 +34,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         admin: env.message.sender,
         buttcoin: buttcoin.clone(),
         total_weight: 0,
-        minting_schedule: mint_schedule,
+        release_schedule: release_schedule,
         viewing_key: viewing_key.clone(),
     };
 
@@ -84,7 +84,7 @@ fn set_schedule<S: Storage, A: Api, Q: Querier>(
     let mut s = schedule;
     sort_schedule(&mut s);
 
-    state.minting_schedule = s;
+    state.release_schedule = s;
     st.save(&state)?;
 
     Ok(HandleResponse {
@@ -121,16 +121,17 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
         // There is no need to update a SPY twice in a block, and there is no need to update a SPY
         // that had 0 weight until now
         if spy_settings.last_update_block < env.block.height && spy_settings.weight > 0 {
-            // Calc amount to mint for this spy contract and push to messages
+            // Calc amount to send to receivable contract
             let rewards = get_spy_rewards(
                 env.block.height,
                 state.total_weight,
-                &state.minting_schedule,
+                &state.release_schedule,
                 spy_settings.clone(),
             );
-            messages.push(snip20::mint_msg(
+            messages.push(snip20::send_msg(
                 to_update.address.clone(),
                 Uint128(rewards),
+                None,
                 None,
                 1,
                 state.buttcoin.contract_hash.clone(),
@@ -199,12 +200,13 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
         rewards = get_spy_rewards(
             env.block.height,
             state.total_weight,
-            &state.minting_schedule,
+            &state.release_schedule,
             spy_settings.clone(),
         );
-        messages.push(snip20::mint_msg(
+        messages.push(snip20::send_msg(
             spy_address.clone(),
             Uint128(rewards),
+            None,
             None,
             1,
             state.buttcoin.contract_hash.clone(),
@@ -277,7 +279,7 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
     Ok(MasterQueryAnswer::Config {
         admin: state.admin,
         buttcoin: state.buttcoin,
-        schedule: state.minting_schedule,
+        schedule: state.release_schedule,
         total_weight: state.total_weight,
         viewing_key: state.viewing_key,
     })
@@ -310,7 +312,7 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
             last_update_block: block,
         });
 
-    let amount = get_spy_rewards(block, state.total_weight, &state.minting_schedule, spy);
+    let amount = get_spy_rewards(block, state.total_weight, &state.release_schedule, spy);
 
     Ok(MasterQueryAnswer::Pending {
         amount: Uint128(amount),
@@ -330,10 +332,12 @@ fn get_spy_rewards(
     for u in schedule.to_owned() {
         if last_update_block < u.end_block {
             if current_block > u.end_block {
-                multiplier += (u.end_block - last_update_block) as u128 * u.mint_per_block.u128();
+                multiplier +=
+                    (u.end_block - last_update_block) as u128 * u.release_per_block.u128();
                 last_update_block = u.end_block;
             } else {
-                multiplier += (current_block - last_update_block) as u128 * u.mint_per_block.u128();
+                multiplier +=
+                    (current_block - last_update_block) as u128 * u.release_per_block.u128();
                 // last_update_block = current_block;
                 break; // No need to go further up the schedule
             }

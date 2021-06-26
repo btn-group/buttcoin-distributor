@@ -22,7 +22,7 @@ pub enum LPStakingResponseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MasterInitMsg {
-    pub minting_schedule: Schedule,
+    pub release_schedule: Schedule,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
