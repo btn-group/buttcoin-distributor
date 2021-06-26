@@ -33,8 +33,9 @@ pub fn sort_schedule(s: &mut Schedule) {
 pub struct State {
     pub admin: HumanAddr,
     pub buttcoin: SecretContract,
-    pub total_weight: u64,
     pub minting_schedule: Schedule,
+    pub total_weight: u64,
+    pub viewing_key: String,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {

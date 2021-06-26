@@ -13,7 +13,9 @@
           "required": [
             "admin",
             "buttcoin",
-            "schedule"
+            "schedule",
+            "total_weight",
+            "viewing_key"
           ],
           "properties": {
             "admin": {
@@ -27,6 +29,14 @@
               "items": {
                 "$ref": "#/definitions/ScheduleUnit"
               }
+            },
+            "total_weight": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "viewing_key": {
+              "type": "string"
             }
           }
         }
