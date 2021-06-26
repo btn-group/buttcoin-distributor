@@ -350,18 +350,204 @@ fn get_receivable_contract_rewards(
 
 fn enforce_admin(config: State, env: Env) -> StdResult<()> {
     if config.admin != env.message.sender {
-        return Err(StdError::generic_err(format!(
-            "not an admin: {}",
-            env.message.sender
-        )));
+        return Err(StdError::Unauthorized { backtrace: None });
     }
 
     Ok(())
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-//     use cosmwasm_std::{coins, from_binary, StdError};
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::ScheduleUnit;
+    use cosmwasm_std::from_binary;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+
+    // === CONSTANTS ===
+    pub const MOCK_ADMIN: &str = "admin";
+
+    // === HELPERS ===
+    fn init_helper() -> (
+        StdResult<InitResponse>,
+        Extern<MockStorage, MockApi, MockQuerier>,
+    ) {
+        let env = mock_env(MOCK_ADMIN, &[]);
+        let release_schedule: Schedule = vec![
+            ScheduleUnit {
+                end_block: env.block.height + 1000,
+                release_per_block: Uint128(4000),
+            },
+            ScheduleUnit {
+                end_block: env.block.height + 2000,
+                release_per_block: Uint128(3000),
+            },
+        ];
+        let mut deps = mock_dependencies(20, &[]);
+        let msg = InitMsg { release_schedule };
+        (init(&mut deps, env.clone(), msg), deps)
+    }
+
+    // === QUERY ===
+
+    #[test]
+    fn test_query_public_config() {
+        let (_init_result, deps) = init_helper();
+        let env = mock_env(MOCK_ADMIN, &[]);
+        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        match res {
+            QueryAnswer::Config {
+                admin,
+                buttcoin,
+                schedule,
+                total_weight,
+                viewing_key,
+            } => {
+                assert_eq!(admin, HumanAddr(MOCK_ADMIN.to_string()));
+                assert_eq!(
+                    buttcoin,
+                    SecretContract {
+                        address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
+                        contract_hash:
+                            "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
+                                .to_string()
+                    }
+                );
+                assert_eq!(
+                    schedule,
+                    vec![
+                        ScheduleUnit {
+                            end_block: env.block.height + 1000,
+                            release_per_block: Uint128(4000),
+                        },
+                        ScheduleUnit {
+                            end_block: env.block.height + 2000,
+                            release_per_block: Uint128(3000),
+                        },
+                    ]
+                );
+                assert_eq!(total_weight, 0);
+                assert_eq!(viewing_key, "api_key_ButtcoinDistributor=".to_string());
+            }
+            _ => panic!("unexpected error"),
+        }
+    }
+
+    // === HANDLE ===
+
+    #[test]
+    fn test_handle_change_admin() {
+        let (init_result, mut deps) = init_helper();
+
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        let handle_msg = HandleMsg::ChangeAdmin {
+            addr: HumanAddr("bob".to_string()),
+        };
+        let handle_result = handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg);
+        assert!(
+            handle_result.is_ok(),
+            "handle() failed: {}",
+            handle_result.err().unwrap()
+        );
+
+        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        match res {
+            QueryAnswer::Config { admin, .. } => assert_eq!(admin, HumanAddr("bob".to_string())),
+            _ => panic!("unexpected error"),
+        }
+    }
+
+    #[test]
+    fn test_set_schedule() {
+        let (init_result, mut deps) = init_helper();
+        let env = mock_env("non-admin", &[]);
+
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        let new_release_schedule: Schedule = vec![
+            ScheduleUnit {
+                end_block: env.block.height + 3000,
+                release_per_block: Uint128(3000),
+            },
+            ScheduleUnit {
+                end_block: env.block.height + 6000,
+                release_per_block: Uint128(6000),
+            },
+        ];
+
+        let handle_msg = HandleMsg::SetSchedule {
+            schedule: new_release_schedule.clone(),
+        };
+
+        // When function is called by a non-admin
+        let handle_result = handle(&mut deps, mock_env("non-admin", &[]), handle_msg.clone());
+        assert_eq!(
+            handle_result.unwrap_err(),
+            StdError::Unauthorized { backtrace: None }
+        );
+
+        // When function is called by an admin
+        let handle_result = handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg);
+        handle_result.unwrap();
+
+        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        match res {
+            QueryAnswer::Config { schedule, .. } => {
+                assert_eq!(schedule, new_release_schedule);
+            }
+            _ => panic!("unexpected error"),
+        }
+    }
+
+    #[test]
+    fn test_set_weights() {
+        let (init_result, mut deps) = init_helper();
+
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        let handle_msg = HandleMsg::SetWeights {
+            weights: vec![WeightInfo {
+                address: HumanAddr::from("sefistakingoptimizeraddress"),
+                hash: "sefistakingoptimizerhash".to_string(),
+                weight: 123,
+            }],
+        };
+
+        // When function is called by a non-admin
+        let handle_result = handle(&mut deps, mock_env("non-admin", &[]), handle_msg.clone());
+        assert_eq!(
+            handle_result.unwrap_err(),
+            StdError::Unauthorized { backtrace: None }
+        );
+
+        // When function is called by an admin
+        let handle_result = handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg);
+        handle_result.unwrap();
+        let res = from_binary(
+            &query(
+                &deps,
+                QueryMsg::ReceivableContractWeight {
+                    addr: HumanAddr::from("sefistakingoptimizeraddress"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            QueryAnswer::ReceivableContractWeight { weight } => assert_eq!(weight, 123),
+            _ => panic!("unexpected error"),
+        }
+    }
+}
