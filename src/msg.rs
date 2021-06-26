@@ -29,8 +29,8 @@ pub struct MasterInitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum MasterHandleMsg {
     UpdateAllocation {
-        spy_addr: HumanAddr,
-        spy_hash: String,
+        receivable_contract_address: HumanAddr,
+        receivable_contract_hash: String,
         hook: Option<Binary>,
     },
 
@@ -57,8 +57,13 @@ pub enum MasterHandleAnswer {
 #[serde(rename_all = "snake_case")]
 pub enum MasterQueryMsg {
     Config {},
-    SpyWeight { addr: HumanAddr },
-    Pending { spy_addr: HumanAddr, block: u64 },
+    ReceivableContractWeight {
+        addr: HumanAddr,
+    },
+    Pending {
+        receivable_contract_address: HumanAddr,
+        block: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -71,7 +76,7 @@ pub enum MasterQueryAnswer {
         total_weight: u64,
         viewing_key: String,
     },
-    SpyWeight {
+    ReceivableContractWeight {
         weight: u64,
     },
     Pending {

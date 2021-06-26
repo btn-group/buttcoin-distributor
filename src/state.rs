@@ -12,7 +12,7 @@ pub struct SecretContract {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SpySettings {
+pub struct ReceivableContractSettings {
     pub weight: u64,
     pub last_update_block: u64,
 }

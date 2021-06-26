@@ -11,8 +11,8 @@
         "update_allocation": {
           "type": "object",
           "required": [
-            "spy_addr",
-            "spy_hash"
+            "receivable_contract_address",
+            "receivable_contract_hash"
           ],
           "properties": {
             "hook": {
@@ -25,10 +25,10 @@
                 }
               ]
             },
-            "spy_addr": {
+            "receivable_contract_address": {
               "$ref": "#/definitions/HumanAddr"
             },
-            "spy_hash": {
+            "receivable_contract_hash": {
               "type": "string"
             }
           }
