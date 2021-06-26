@@ -58,10 +58,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::UpdateAllocation {
+        HandleMsg::ClaimButtcoin {
             receivable_contract_address,
             hook,
-        } => update_allocation(deps, env, receivable_contract_address, hook),
+        } => claim_buttcoin(deps, env, receivable_contract_address, hook),
         HandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
         HandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
         HandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
@@ -130,8 +130,7 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
             messages.push(snip20::send_msg(
                 to_update.address.clone(),
                 Uint128(rewards),
-                Some(to_binary(&LPStakingHandleMsg::NotifyAllocation {
-                    amount: Uint128(rewards),
+                Some(to_binary(&LPStakingHandleMsg::ButtcoinClaimedCallback {
                     hook: None,
                 })?),
                 None,
@@ -169,7 +168,7 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn update_allocation<S: Storage, A: Api, Q: Querier>(
+fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     receivable_contract_address: HumanAddr,
@@ -208,8 +207,7 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
     messages.push(snip20::send_msg(
         receivable_contract_address.clone(),
         Uint128(rewards),
-        Some(to_binary(&LPStakingHandleMsg::NotifyAllocation {
-            amount: Uint128(rewards),
+        Some(to_binary(&LPStakingHandleMsg::ButtcoinClaimedCallback {
             hook,
         })?),
         None,
@@ -220,7 +218,7 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("update_allocation", receivable_contract_address.0)],
+        log: vec![log("claim_buttcoin", receivable_contract_address.0)],
         data: Some(to_binary(&HandleAnswer::Success)?),
     })
 }

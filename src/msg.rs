@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LPStakingHandleMsg {
-    NotifyAllocation {
-        amount: Uint128,
-        hook: Option<Binary>,
-    },
+    ButtcoinClaimedCallback { hook: Option<Binary> },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -27,7 +24,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    UpdateAllocation {
+    ClaimButtcoin {
         receivable_contract_address: HumanAddr,
         hook: Option<Binary>,
     },
