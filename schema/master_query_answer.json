@@ -91,7 +91,7 @@
       "type": "object",
       "required": [
         "end_block",
-        "mint_per_block"
+        "release_per_block"
       ],
       "properties": {
         "end_block": {
@@ -99,7 +99,7 @@
           "format": "uint64",
           "minimum": 0.0
         },
-        "mint_per_block": {
+        "release_per_block": {
           "$ref": "#/definitions/Uint128"
         }
       }

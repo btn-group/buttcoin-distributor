@@ -20,7 +20,7 @@ pub struct SpySettings {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Copy)]
 pub struct ScheduleUnit {
     pub end_block: u64,
-    pub mint_per_block: Uint128,
+    pub release_per_block: Uint128,
 }
 
 pub type Schedule = Vec<ScheduleUnit>;
@@ -33,7 +33,7 @@ pub fn sort_schedule(s: &mut Schedule) {
 pub struct State {
     pub admin: HumanAddr,
     pub buttcoin: SecretContract,
-    pub minting_schedule: Schedule,
+    pub release_schedule: Schedule,
     pub total_weight: u64,
     pub viewing_key: String,
 }
