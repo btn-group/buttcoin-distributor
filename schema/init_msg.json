@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "MasterInitMsg",
+  "title": "InitMsg",
   "type": "object",
   "required": [
     "release_schedule"

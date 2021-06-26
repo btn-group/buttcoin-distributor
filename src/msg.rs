@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LPStakingHandleMsg {
-    // Master callbacks
     NotifyAllocation {
         amount: Uint128,
         hook: Option<Binary>,
@@ -21,13 +20,13 @@ pub enum LPStakingResponseStatus {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MasterInitMsg {
+pub struct InitMsg {
     pub release_schedule: Schedule,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum MasterHandleMsg {
+pub enum HandleMsg {
     UpdateAllocation {
         receivable_contract_address: HumanAddr,
         hook: Option<Binary>,
@@ -47,14 +46,14 @@ pub enum MasterHandleMsg {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum MasterHandleAnswer {
+pub enum HandleAnswer {
     Success,
     Failure,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum MasterQueryMsg {
+pub enum QueryMsg {
     Config {},
     ReceivableContractWeight {
         addr: HumanAddr,
@@ -67,7 +66,7 @@ pub enum MasterQueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum MasterQueryAnswer {
+pub enum QueryAnswer {
     Config {
         admin: HumanAddr,
         buttcoin: SecretContract,
