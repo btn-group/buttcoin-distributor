@@ -3,7 +3,8 @@ use crate::msg::{
     MasterQueryMsg,
 };
 use crate::state::{
-    config, config_read, sort_schedule, Schedule, SecretContract, SpySettings, State, WeightInfo,
+    config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
+    State, WeightInfo,
 };
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
@@ -61,10 +62,16 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         MasterHandleMsg::UpdateAllocation {
-            spy_addr,
-            spy_hash,
+            receivable_contract_address,
+            receivable_contract_hash,
             hook,
-        } => update_allocation(deps, env, spy_addr, spy_hash, hook),
+        } => update_allocation(
+            deps,
+            env,
+            receivable_contract_address,
+            receivable_contract_hash,
+            hook,
+        ),
         MasterHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
         MasterHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
         MasterHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
@@ -111,22 +118,24 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
     // Update reward contracts one by one
     for to_update in weights {
         let mut rs = TypedStoreMut::attach(&mut deps.storage);
-        let mut spy_settings =
-            rs.load(to_update.address.clone().0.as_bytes())
-                .unwrap_or(SpySettings {
-                    weight: 0,
-                    last_update_block: env.block.height,
-                });
+        let mut receivable_contract_settings = rs
+            .load(to_update.address.clone().0.as_bytes())
+            .unwrap_or(ReceivableContractSettings {
+                weight: 0,
+                last_update_block: env.block.height,
+            });
 
-        // There is no need to update a SPY twice in a block, and there is no need to update a SPY
+        // There is no need to update a receivable_contract twice in a block, and there is no need to update a receivable_contract
         // that had 0 weight until now
-        if spy_settings.last_update_block < env.block.height && spy_settings.weight > 0 {
+        if receivable_contract_settings.last_update_block < env.block.height
+            && receivable_contract_settings.weight > 0
+        {
             // Calc amount to send to receivable contract
-            let rewards = get_spy_rewards(
+            let rewards = get_receivable_contract_rewards(
                 env.block.height,
                 state.total_weight,
                 &state.release_schedule,
-                spy_settings.clone(),
+                receivable_contract_settings.clone(),
             );
             messages.push(snip20::send_msg(
                 to_update.address.clone(),
@@ -138,7 +147,7 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
                 state.buttcoin.address.clone(),
             )?);
 
-            // Notify to the spy contract on the new allocation
+            // Notify to the receivable_contract contract on the new allocation
             messages.push(
                 WasmMsg::Execute {
                     contract_addr: to_update.address.clone(),
@@ -153,13 +162,16 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
             );
         }
 
-        let old_weight = spy_settings.weight;
+        let old_weight = receivable_contract_settings.weight;
         let new_weight = to_update.weight;
 
         // Set new weight and update total counter
-        spy_settings.weight = new_weight;
-        spy_settings.last_update_block = env.block.height;
-        rs.store(to_update.address.0.as_bytes(), &spy_settings)?;
+        receivable_contract_settings.weight = new_weight;
+        receivable_contract_settings.last_update_block = env.block.height;
+        rs.store(
+            to_update.address.0.as_bytes(),
+            &receivable_contract_settings,
+        )?;
 
         // Update counters to batch update after the loop
         new_weight_counter += new_weight;
@@ -181,30 +193,34 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
 fn update_allocation<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    spy_address: HumanAddr,
-    spy_hash: String,
+    receivable_contract_address: HumanAddr,
+    receivable_contract_hash: String,
     hook: Option<Binary>,
 ) -> StdResult<HandleResponse> {
     let state = config_read(&deps.storage).load()?;
 
     let mut rs = TypedStoreMut::attach(&mut deps.storage);
-    let mut spy_settings = rs.load(spy_address.0.as_bytes()).unwrap_or(SpySettings {
-        weight: 0,
-        last_update_block: env.block.height,
-    });
+    let mut receivable_contract_settings = rs
+        .load(receivable_contract_address.0.as_bytes())
+        .unwrap_or(ReceivableContractSettings {
+            weight: 0,
+            last_update_block: env.block.height,
+        });
 
     let mut rewards = 0;
     let mut messages = vec![];
-    if spy_settings.last_update_block < env.block.height && spy_settings.weight > 0 {
-        // Calc amount to minLPStakingHandleMsg for this spy contract and push to messages
-        rewards = get_spy_rewards(
+    if receivable_contract_settings.last_update_block < env.block.height
+        && receivable_contract_settings.weight > 0
+    {
+        // Calc amount to minLPStakingHandleMsg for this receivable contract and push to messages
+        rewards = get_receivable_contract_rewards(
             env.block.height,
             state.total_weight,
             &state.release_schedule,
-            spy_settings.clone(),
+            receivable_contract_settings.clone(),
         );
         messages.push(snip20::send_msg(
-            spy_address.clone(),
+            receivable_contract_address.clone(),
             Uint128(rewards),
             None,
             None,
@@ -213,15 +229,18 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
             state.buttcoin.address,
         )?);
 
-        spy_settings.last_update_block = env.block.height;
-        rs.store(spy_address.0.as_bytes(), &spy_settings)?;
+        receivable_contract_settings.last_update_block = env.block.height;
+        rs.store(
+            receivable_contract_address.0.as_bytes(),
+            &receivable_contract_settings,
+        )?;
     }
 
-    // Notify to the spy contract on the new allocation
+    // Notify to the receivable contract on the new allocation
     messages.push(
         WasmMsg::Execute {
-            contract_addr: spy_address.clone(),
-            callback_code_hash: spy_hash,
+            contract_addr: receivable_contract_address.clone(),
+            callback_code_hash: receivable_contract_hash,
             msg: to_binary(&LPStakingHandleMsg::NotifyAllocation {
                 amount: Uint128(rewards),
                 hook,
@@ -233,7 +252,7 @@ fn update_allocation<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("update_allocation", spy_address.0)],
+        log: vec![log("update_allocation", receivable_contract_address.0)],
         data: Some(to_binary(&MasterHandleAnswer::Success)?),
     })
 }
@@ -264,10 +283,17 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         MasterQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
-        MasterQueryMsg::SpyWeight { addr } => to_binary(&query_spy_weight(deps, addr)?),
-        MasterQueryMsg::Pending { spy_addr, block } => {
-            to_binary(&query_pending_rewards(deps, spy_addr, block)?)
+        MasterQueryMsg::ReceivableContractWeight { addr } => {
+            to_binary(&query_receivable_contract_weight(deps, addr)?)
         }
+        MasterQueryMsg::Pending {
+            receivable_contract_address,
+            block,
+        } => to_binary(&query_pending_rewards(
+            deps,
+            receivable_contract_address,
+            block,
+        )?),
     }
 }
 
@@ -285,47 +311,54 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn query_spy_weight<S: Storage, A: Api, Q: Querier>(
+fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    spy_address: HumanAddr,
+    receivable_contract_address: HumanAddr,
 ) -> StdResult<MasterQueryAnswer> {
-    let spy = TypedStore::attach(&deps.storage)
-        .load(spy_address.0.as_bytes())
-        .unwrap_or(SpySettings {
+    let receivable_contract = TypedStore::attach(&deps.storage)
+        .load(receivable_contract_address.0.as_bytes())
+        .unwrap_or(ReceivableContractSettings {
             weight: 0,
             last_update_block: 0,
         });
 
-    Ok(MasterQueryAnswer::SpyWeight { weight: spy.weight })
+    Ok(MasterQueryAnswer::ReceivableContractWeight {
+        weight: receivable_contract.weight,
+    })
 }
 
 fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    spy_addr: HumanAddr,
+    receivable_contract_addr: HumanAddr,
     block: u64,
 ) -> StdResult<MasterQueryAnswer> {
     let state = config_read(&deps.storage).load()?;
-    let spy = TypedStore::attach(&deps.storage)
-        .load(spy_addr.0.as_bytes())
-        .unwrap_or(SpySettings {
+    let receivable_contract = TypedStore::attach(&deps.storage)
+        .load(receivable_contract_addr.0.as_bytes())
+        .unwrap_or(ReceivableContractSettings {
             weight: 0,
             last_update_block: block,
         });
 
-    let amount = get_spy_rewards(block, state.total_weight, &state.release_schedule, spy);
+    let amount = get_receivable_contract_rewards(
+        block,
+        state.total_weight,
+        &state.release_schedule,
+        receivable_contract,
+    );
 
     Ok(MasterQueryAnswer::Pending {
         amount: Uint128(amount),
     })
 }
 
-fn get_spy_rewards(
+fn get_receivable_contract_rewards(
     current_block: u64,
     total_weight: u64,
     schedule: &Schedule,
-    spy_settings: SpySettings,
+    receivable_contract_settings: ReceivableContractSettings,
 ) -> u128 {
-    let mut last_update_block = spy_settings.last_update_block;
+    let mut last_update_block = receivable_contract_settings.last_update_block;
 
     let mut multiplier = 0;
     // Going serially assuming that schedule is not a big vector
@@ -344,7 +377,7 @@ fn get_spy_rewards(
         }
     }
 
-    (multiplier * spy_settings.weight as u128) / total_weight as u128
+    (multiplier * receivable_contract_settings.weight as u128) / total_weight as u128
 }
 
 fn enforce_admin(config: State, env: Env) -> StdResult<()> {
