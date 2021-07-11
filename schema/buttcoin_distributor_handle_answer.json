@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ButtcoinDistributorHandleAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "change_admin"
+      ],
+      "properties": {
+        "change_admin": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/definitions/ButtcoinDistributorResponseStatus"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim_buttcoin"
+      ],
+      "properties": {
+        "claim_buttcoin": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/definitions/ButtcoinDistributorResponseStatus"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_weights"
+      ],
+      "properties": {
+        "set_weights": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/definitions/ButtcoinDistributorResponseStatus"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_schedule"
+      ],
+      "properties": {
+        "set_schedule": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "$ref": "#/definitions/ButtcoinDistributorResponseStatus"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "ButtcoinDistributorResponseStatus": {
+      "type": "string",
+      "enum": [
+        "success",
+        "failure"
+      ]
+    }
+  }
+}

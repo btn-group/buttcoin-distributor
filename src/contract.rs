@@ -1,5 +1,7 @@
+use crate::msg::ButtcoinDistributorResponseStatus::Success;
 use crate::msg::{
-    ButtcoinDistributorHandleMsg, HandleAnswer, InitMsg, LPStakingHandleMsg, QueryAnswer, QueryMsg,
+    ButtcoinDistributorHandleAnswer, ButtcoinDistributorHandleMsg, ButtcoinDistributorQueryAnswer,
+    ButtcoinDistributorQueryMsg, InitMsg, LPStakingHandleMsg,
 };
 use crate::state::{
     config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
@@ -89,7 +91,9 @@ fn set_schedule<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&HandleAnswer::Success)?),
+        data: Some(to_binary(&ButtcoinDistributorHandleAnswer::SetSchedule {
+            status: Success,
+        })?),
     })
 }
 
@@ -166,7 +170,9 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: logs,
-        data: Some(to_binary(&HandleAnswer::Success)?),
+        data: Some(to_binary(&ButtcoinDistributorHandleAnswer::SetWeights {
+            status: Success,
+        })?),
     })
 }
 
@@ -221,7 +227,9 @@ fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages,
         log: vec![log("claim_buttcoin", receivable_contract_address.0)],
-        data: Some(to_binary(&HandleAnswer::Success)?),
+        data: Some(to_binary(
+            &ButtcoinDistributorHandleAnswer::ClaimButtcoin { status: Success },
+        )?),
     })
 }
 
@@ -241,20 +249,22 @@ fn change_admin<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&HandleAnswer::Success)?),
+        data: Some(to_binary(&ButtcoinDistributorHandleAnswer::ChangeAdmin {
+            status: Success,
+        })?),
     })
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
+    msg: ButtcoinDistributorQueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_public_config(deps)?),
-        QueryMsg::ReceivableContractWeight { addr } => {
+        ButtcoinDistributorQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
+        ButtcoinDistributorQueryMsg::ReceivableContractWeight { addr } => {
             to_binary(&query_receivable_contract_weight(deps, addr)?)
         }
-        QueryMsg::Pending {
+        ButtcoinDistributorQueryMsg::Pending {
             receivable_contract_address,
             block,
         } => to_binary(&query_pending_rewards(
@@ -267,10 +277,10 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 
 fn query_public_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
     let state: State = config_read(&deps.storage).load()?;
 
-    Ok(QueryAnswer::Config {
+    Ok(ButtcoinDistributorQueryAnswer::Config {
         admin: state.admin,
         buttcoin: state.buttcoin,
         schedule: state.release_schedule,
@@ -282,7 +292,7 @@ fn query_public_config<S: Storage, A: Api, Q: Querier>(
 fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     receivable_contract_address: HumanAddr,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
     let receivable_contract = TypedStore::attach(&deps.storage)
         .load(receivable_contract_address.0.as_bytes())
         .unwrap_or(ReceivableContractSettings {
@@ -290,7 +300,7 @@ fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
             last_update_block: 0,
         });
 
-    Ok(QueryAnswer::ReceivableContractWeight {
+    Ok(ButtcoinDistributorQueryAnswer::ReceivableContractWeight {
         weight: receivable_contract.weight,
     })
 }
@@ -299,7 +309,7 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     receivable_contract_addr: HumanAddr,
     block: u64,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
     let state = config_read(&deps.storage).load()?;
     let receivable_contract = TypedStore::attach(&deps.storage)
         .load(receivable_contract_addr.0.as_bytes())
@@ -315,7 +325,7 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
         receivable_contract,
     );
 
-    Ok(QueryAnswer::Pending {
+    Ok(ButtcoinDistributorQueryAnswer::Pending {
         amount: Uint128(amount),
     })
 }
@@ -393,9 +403,10 @@ mod tests {
     fn test_query_public_config() {
         let (_init_result, deps) = init_helper();
         let env = mock_env(MOCK_ADMIN, &[]);
-        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Config {}).unwrap()).unwrap();
         match res {
-            QueryAnswer::Config {
+            ButtcoinDistributorQueryAnswer::Config {
                 admin,
                 buttcoin,
                 schedule,
@@ -454,9 +465,12 @@ mod tests {
             handle_result.err().unwrap()
         );
 
-        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Config {}).unwrap()).unwrap();
         match res {
-            QueryAnswer::Config { admin, .. } => assert_eq!(admin, HumanAddr("bob".to_string())),
+            ButtcoinDistributorQueryAnswer::Config { admin, .. } => {
+                assert_eq!(admin, HumanAddr("bob".to_string()))
+            }
             _ => panic!("unexpected error"),
         }
     }
@@ -498,9 +512,10 @@ mod tests {
         let handle_result = handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg);
         handle_result.unwrap();
 
-        let res = from_binary(&query(&deps, QueryMsg::Config {}).unwrap()).unwrap();
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Config {}).unwrap()).unwrap();
         match res {
-            QueryAnswer::Config { schedule, .. } => {
+            ButtcoinDistributorQueryAnswer::Config { schedule, .. } => {
                 assert_eq!(schedule, new_release_schedule);
             }
             _ => panic!("unexpected error"),
@@ -538,7 +553,7 @@ mod tests {
         let res = from_binary(
             &query(
                 &deps,
-                QueryMsg::ReceivableContractWeight {
+                ButtcoinDistributorQueryMsg::ReceivableContractWeight {
                     addr: HumanAddr::from("sefistakingoptimizeraddress"),
                 },
             )
@@ -546,7 +561,9 @@ mod tests {
         )
         .unwrap();
         match res {
-            QueryAnswer::ReceivableContractWeight { weight } => assert_eq!(weight, 123),
+            ButtcoinDistributorQueryAnswer::ReceivableContractWeight { weight } => {
+                assert_eq!(weight, 123)
+            }
             _ => panic!("unexpected error"),
         }
     }

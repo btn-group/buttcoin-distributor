@@ -4,19 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum LPStakingHandleMsg {
-    ButtcoinClaimedCallback { hook: Option<Binary> },
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum LPStakingResponseStatus {
-    Success,
-    Failure,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub release_schedule: Schedule,
 }
@@ -28,8 +15,6 @@ pub enum ButtcoinDistributorHandleMsg {
         receivable_contract_address: HumanAddr,
         hook: Option<Binary>,
     },
-
-    // Admin commands
     SetWeights {
         weights: Vec<WeightInfo>,
     },
@@ -43,14 +28,24 @@ pub enum ButtcoinDistributorHandleMsg {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleAnswer {
-    Success,
-    Failure,
+pub enum ButtcoinDistributorHandleAnswer {
+    ChangeAdmin {
+        status: ButtcoinDistributorResponseStatus,
+    },
+    ClaimButtcoin {
+        status: ButtcoinDistributorResponseStatus,
+    },
+    SetWeights {
+        status: ButtcoinDistributorResponseStatus,
+    },
+    SetSchedule {
+        status: ButtcoinDistributorResponseStatus,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
+pub enum ButtcoinDistributorQueryMsg {
     Config {},
     ReceivableContractWeight {
         addr: HumanAddr,
@@ -63,7 +58,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
+pub enum ButtcoinDistributorQueryAnswer {
     Config {
         admin: HumanAddr,
         buttcoin: SecretContract,
@@ -77,4 +72,19 @@ pub enum QueryAnswer {
     Pending {
         amount: Uint128,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ButtcoinDistributorResponseStatus {
+    Success,
+    Failure,
+}
+
+// === LPStaking ===
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LPStakingHandleMsg {
+    ButtcoinClaimedCallback { hook: Option<Binary> },
 }
