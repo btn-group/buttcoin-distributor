@@ -1,7 +1,7 @@
 use crate::msg::ButtcoinDistributorResponseStatus::Success;
 use crate::msg::{
     ButtcoinDistributorHandleAnswer, ButtcoinDistributorHandleMsg, ButtcoinDistributorQueryAnswer,
-    ButtcoinDistributorQueryMsg, InitMsg, LPStakingHandleMsg,
+    ButtcoinDistributorQueryMsg, InitMsg, YieldOptimizerHandleMsg,
 };
 use crate::state::{
     config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
@@ -136,9 +136,9 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
             messages.push(snip20::send_msg(
                 to_update.address.clone(),
                 Uint128(rewards),
-                Some(to_binary(&LPStakingHandleMsg::ButtcoinClaimedCallback {
-                    hook: None,
-                })?),
+                Some(to_binary(
+                    &YieldOptimizerHandleMsg::ButtcoinClaimedCallback { hook: None },
+                )?),
                 None,
                 1,
                 state.buttcoin.contract_hash.clone(),
@@ -197,7 +197,7 @@ fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
     if receivable_contract_settings.last_update_block < env.block.height
         && receivable_contract_settings.weight > 0
     {
-        // Calc amount to minLPStakingHandleMsg for this receivable contract and push to messages
+        // Calc amount to minYieldOptimizerHandleMsg for this receivable contract and push to messages
         rewards = get_receivable_contract_rewards(
             env.block.height,
             state.total_weight,
@@ -215,9 +215,9 @@ fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
     messages.push(snip20::send_msg(
         receivable_contract_address.clone(),
         Uint128(rewards),
-        Some(to_binary(&LPStakingHandleMsg::ButtcoinClaimedCallback {
-            hook,
-        })?),
+        Some(to_binary(
+            &YieldOptimizerHandleMsg::ButtcoinClaimedCallback { hook },
+        )?),
         None,
         1,
         state.buttcoin.contract_hash.clone(),
