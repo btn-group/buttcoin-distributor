@@ -22,11 +22,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let mut release_schedule = msg.release_schedule;
     sort_schedule(&mut release_schedule);
 
-    let buttcoin = SecretContract {
-        address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
-        contract_hash: "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
-            .to_string(),
-    };
     // We are going to publicly expose the viewing key for this contract because
     // the transfers are only between the admin to this contract and from this contract to
     // sub contracts such as yield optimizers.
@@ -34,7 +29,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let viewing_key = "api_key_ButtcoinDistributor=".to_string();
     let state = State {
         admin: env.message.sender,
-        buttcoin: buttcoin.clone(),
+        buttcoin: msg.buttcoin.clone(),
         total_weight: 0,
         release_schedule: release_schedule,
         viewing_key: viewing_key.clone(),
@@ -46,8 +41,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         viewing_key,
         None,
         1,
-        buttcoin.contract_hash,
-        buttcoin.address,
+        msg.buttcoin.contract_hash,
+        msg.buttcoin.address,
     )?];
 
     Ok(InitResponse {
@@ -393,8 +388,18 @@ mod tests {
             },
         ];
         let mut deps = mock_dependencies(20, &[]);
-        let msg = InitMsg { release_schedule };
+        let msg = InitMsg {
+            buttcoin: mock_buttcoin(),
+            release_schedule,
+        };
         (init(&mut deps, env.clone(), msg), deps)
+    }
+
+    fn mock_buttcoin() -> SecretContract {
+        SecretContract {
+            address: HumanAddr::from("buttcoincontractaddress"),
+            contract_hash: "buttcoincontracthash".to_string(),
+        }
     }
 
     // === QUERY ===
@@ -414,15 +419,7 @@ mod tests {
                 viewing_key,
             } => {
                 assert_eq!(admin, HumanAddr(MOCK_ADMIN.to_string()));
-                assert_eq!(
-                    buttcoin,
-                    SecretContract {
-                        address: HumanAddr::from("secret1yxcexylwyxlq58umhgsjgstgcg2a0ytfy4d9lt"),
-                        contract_hash:
-                            "F8B27343FF08290827560A1BA358EECE600C9EA7F403B02684AD87AE7AF0F288"
-                                .to_string()
-                    }
-                );
+                assert_eq!(buttcoin, mock_buttcoin());
                 assert_eq!(
                     schedule,
                     vec![
