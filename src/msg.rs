@@ -85,6 +85,6 @@ pub enum ButtcoinDistributorResponseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum LPStakingHandleMsg {
+pub enum YieldOptimizerHandleMsg {
     ButtcoinClaimedCallback { hook: Option<Binary> },
 }
