@@ -1,15 +1,15 @@
+use crate::authorize::authorize;
 use crate::msg::ButtcoinDistributorResponseStatus::Success;
 use crate::msg::{
     ButtcoinDistributorHandleAnswer, ButtcoinDistributorHandleMsg, ButtcoinDistributorQueryAnswer,
     ButtcoinDistributorQueryMsg, InitMsg, YieldOptimizerHandleMsg,
 };
 use crate::state::{
-    config, config_read, sort_schedule, ReceivableContractSettings, Schedule, SecretContract,
-    State, WeightInfo,
+    config, config_read, sort_schedule, ReceivableContractSettings, Schedule, State, WeightInfo,
 };
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
-    StdError, StdResult, Storage, Uint128,
+    StdResult, Storage, Uint128,
 };
 use secret_toolkit::snip20;
 use secret_toolkit::storage::{TypedStore, TypedStoreMut};
@@ -67,6 +67,109 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
+pub fn query<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    msg: ButtcoinDistributorQueryMsg,
+) -> StdResult<Binary> {
+    match msg {
+        ButtcoinDistributorQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
+        ButtcoinDistributorQueryMsg::ReceivableContractWeight { addr } => {
+            to_binary(&query_receivable_contract_weight(deps, addr)?)
+        }
+        ButtcoinDistributorQueryMsg::Pending {
+            receivable_contract_address,
+            block,
+        } => to_binary(&query_pending_rewards(
+            deps,
+            receivable_contract_address,
+            block,
+        )?),
+    }
+}
+
+fn query_public_config<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
+    let state: State = config_read(&deps.storage).load()?;
+
+    Ok(ButtcoinDistributorQueryAnswer::Config {
+        admin: state.admin,
+        buttcoin: state.buttcoin,
+        schedule: state.release_schedule,
+        total_weight: state.total_weight,
+        viewing_key: state.viewing_key,
+    })
+}
+
+fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    receivable_contract_address: HumanAddr,
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
+    let receivable_contract = TypedStore::attach(&deps.storage)
+        .load(receivable_contract_address.0.as_bytes())
+        .unwrap_or(ReceivableContractSettings {
+            weight: 0,
+            last_update_block: 0,
+        });
+
+    Ok(ButtcoinDistributorQueryAnswer::ReceivableContractWeight {
+        weight: receivable_contract.weight,
+    })
+}
+
+fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    receivable_contract_addr: HumanAddr,
+    block: u64,
+) -> StdResult<ButtcoinDistributorQueryAnswer> {
+    let state = config_read(&deps.storage).load()?;
+    let receivable_contract = TypedStore::attach(&deps.storage)
+        .load(receivable_contract_addr.0.as_bytes())
+        .unwrap_or(ReceivableContractSettings {
+            weight: 0,
+            last_update_block: block,
+        });
+
+    let amount = get_receivable_contract_rewards(
+        block,
+        state.total_weight,
+        &state.release_schedule,
+        receivable_contract,
+    );
+
+    Ok(ButtcoinDistributorQueryAnswer::Pending {
+        amount: Uint128(amount),
+    })
+}
+
+fn get_receivable_contract_rewards(
+    current_block: u64,
+    total_weight: u64,
+    schedule: &Schedule,
+    receivable_contract_settings: ReceivableContractSettings,
+) -> u128 {
+    let mut last_update_block = receivable_contract_settings.last_update_block;
+
+    let mut multiplier = 0;
+    // Going serially assuming that schedule is not a big vector
+    for u in schedule.to_owned() {
+        if last_update_block < u.end_block {
+            if current_block > u.end_block {
+                multiplier +=
+                    (u.end_block - last_update_block) as u128 * u.release_per_block.u128();
+                last_update_block = u.end_block;
+            } else {
+                multiplier +=
+                    (current_block - last_update_block) as u128 * u.release_per_block.u128();
+                // last_update_block = current_block;
+                break; // No need to go further up the schedule
+            }
+        }
+    }
+
+    (multiplier * receivable_contract_settings.weight as u128) / total_weight as u128
+}
+
 fn set_schedule<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -74,12 +177,10 @@ fn set_schedule<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let mut st = config(&mut deps.storage);
     let mut state = st.load()?;
-
-    enforce_admin(state.clone(), env)?;
+    authorize(state.admin.clone(), env.message.sender)?;
 
     let mut s = schedule;
     sort_schedule(&mut s);
-
     state.release_schedule = s;
     st.save(&state)?;
 
@@ -98,8 +199,7 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
     weights: Vec<WeightInfo>,
 ) -> StdResult<HandleResponse> {
     let mut state = config_read(&deps.storage).load()?;
-
-    enforce_admin(state.clone(), env.clone())?;
+    authorize(state.admin.clone(), env.message.sender)?;
 
     let mut messages = vec![];
     let mut logs = vec![];
@@ -234,11 +334,9 @@ fn change_admin<S: Storage, A: Api, Q: Querier>(
     admin_addr: HumanAddr,
 ) -> StdResult<HandleResponse> {
     let mut state = config_read(&deps.storage).load()?;
-
-    enforce_admin(state.clone(), env)?;
+    authorize(state.admin, env.message.sender)?;
 
     state.admin = admin_addr;
-
     config(&mut deps.storage).save(&state)?;
 
     Ok(HandleResponse {
@@ -250,123 +348,12 @@ fn change_admin<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: ButtcoinDistributorQueryMsg,
-) -> StdResult<Binary> {
-    match msg {
-        ButtcoinDistributorQueryMsg::Config {} => to_binary(&query_public_config(deps)?),
-        ButtcoinDistributorQueryMsg::ReceivableContractWeight { addr } => {
-            to_binary(&query_receivable_contract_weight(deps, addr)?)
-        }
-        ButtcoinDistributorQueryMsg::Pending {
-            receivable_contract_address,
-            block,
-        } => to_binary(&query_pending_rewards(
-            deps,
-            receivable_contract_address,
-            block,
-        )?),
-    }
-}
-
-fn query_public_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ButtcoinDistributorQueryAnswer> {
-    let state: State = config_read(&deps.storage).load()?;
-
-    Ok(ButtcoinDistributorQueryAnswer::Config {
-        admin: state.admin,
-        buttcoin: state.buttcoin,
-        schedule: state.release_schedule,
-        total_weight: state.total_weight,
-        viewing_key: state.viewing_key,
-    })
-}
-
-fn query_receivable_contract_weight<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    receivable_contract_address: HumanAddr,
-) -> StdResult<ButtcoinDistributorQueryAnswer> {
-    let receivable_contract = TypedStore::attach(&deps.storage)
-        .load(receivable_contract_address.0.as_bytes())
-        .unwrap_or(ReceivableContractSettings {
-            weight: 0,
-            last_update_block: 0,
-        });
-
-    Ok(ButtcoinDistributorQueryAnswer::ReceivableContractWeight {
-        weight: receivable_contract.weight,
-    })
-}
-
-fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    receivable_contract_addr: HumanAddr,
-    block: u64,
-) -> StdResult<ButtcoinDistributorQueryAnswer> {
-    let state = config_read(&deps.storage).load()?;
-    let receivable_contract = TypedStore::attach(&deps.storage)
-        .load(receivable_contract_addr.0.as_bytes())
-        .unwrap_or(ReceivableContractSettings {
-            weight: 0,
-            last_update_block: block,
-        });
-
-    let amount = get_receivable_contract_rewards(
-        block,
-        state.total_weight,
-        &state.release_schedule,
-        receivable_contract,
-    );
-
-    Ok(ButtcoinDistributorQueryAnswer::Pending {
-        amount: Uint128(amount),
-    })
-}
-
-fn get_receivable_contract_rewards(
-    current_block: u64,
-    total_weight: u64,
-    schedule: &Schedule,
-    receivable_contract_settings: ReceivableContractSettings,
-) -> u128 {
-    let mut last_update_block = receivable_contract_settings.last_update_block;
-
-    let mut multiplier = 0;
-    // Going serially assuming that schedule is not a big vector
-    for u in schedule.to_owned() {
-        if last_update_block < u.end_block {
-            if current_block > u.end_block {
-                multiplier +=
-                    (u.end_block - last_update_block) as u128 * u.release_per_block.u128();
-                last_update_block = u.end_block;
-            } else {
-                multiplier +=
-                    (current_block - last_update_block) as u128 * u.release_per_block.u128();
-                // last_update_block = current_block;
-                break; // No need to go further up the schedule
-            }
-        }
-    }
-
-    (multiplier * receivable_contract_settings.weight as u128) / total_weight as u128
-}
-
-fn enforce_admin(config: State, env: Env) -> StdResult<()> {
-    if config.admin != env.message.sender {
-        return Err(StdError::Unauthorized { backtrace: None });
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::ScheduleUnit;
-    use cosmwasm_std::from_binary;
+    use crate::state::{ScheduleUnit, SecretContract};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{from_binary, StdError};
 
     // === CONSTANTS ===
     pub const MOCK_ADMIN: &str = "admin";

@@ -3,9 +3,13 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
+    "buttcoin",
     "release_schedule"
   ],
   "properties": {
+    "buttcoin": {
+      "$ref": "#/definitions/SecretContract"
+    },
     "release_schedule": {
       "type": "array",
       "items": {
@@ -14,6 +18,9 @@
     }
   },
   "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
     "ScheduleUnit": {
       "type": "object",
       "required": [
@@ -28,6 +35,21 @@
         },
         "release_per_block": {
           "$ref": "#/definitions/Uint128"
+        }
+      }
+    },
+    "SecretContract": {
+      "type": "object",
+      "required": [
+        "address",
+        "contract_hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "contract_hash": {
+          "type": "string"
         }
       }
     },
