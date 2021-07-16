@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct InitMsg {
     pub buttcoin: SecretContract,
     pub release_schedule: Schedule,
+    pub viewing_key: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
