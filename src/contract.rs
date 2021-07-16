@@ -22,23 +22,18 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let mut release_schedule = msg.release_schedule;
     sort_schedule(&mut release_schedule);
 
-    // We are going to publicly expose the viewing key for this contract because
-    // the transfers are only between the admin to this contract and from this contract to
-    // sub contracts such as yield optimizers.
-    // None of this information will expose user's transactions etc.
-    let viewing_key = "api_key_ButtcoinDistributor=".to_string();
     let state = State {
         admin: env.message.sender,
         buttcoin: msg.buttcoin.clone(),
         total_weight: 0,
         release_schedule: release_schedule,
-        viewing_key: viewing_key.clone(),
+        viewing_key: msg.viewing_key.clone(),
     };
 
     config(&mut deps.storage).save(&state)?;
 
     let messages = vec![snip20::set_viewing_key_msg(
-        viewing_key,
+        msg.viewing_key,
         None,
         1,
         msg.buttcoin.contract_hash,
@@ -378,6 +373,7 @@ mod tests {
         let msg = InitMsg {
             buttcoin: mock_buttcoin(),
             release_schedule,
+            viewing_key: mock_viewing_key(),
         };
         (init(&mut deps, env.clone(), msg), deps)
     }
@@ -387,6 +383,10 @@ mod tests {
             address: HumanAddr::from("buttcoincontractaddress"),
             contract_hash: "buttcoincontracthash".to_string(),
         }
+    }
+
+    fn mock_viewing_key() -> String {
+        "viewing_key".to_string()
     }
 
     // === QUERY ===
@@ -421,7 +421,7 @@ mod tests {
                     ]
                 );
                 assert_eq!(total_weight, 0);
-                assert_eq!(viewing_key, "api_key_ButtcoinDistributor=".to_string());
+                assert_eq!(viewing_key, mock_viewing_key());
             }
             _ => panic!("unexpected error"),
         }
