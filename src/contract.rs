@@ -138,31 +138,38 @@ fn query_pending_rewards<S: Storage, A: Api, Q: Querier>(
 }
 
 fn get_receivable_contract_rewards(
-    current_block: u64,
+    block: u64,
     total_weight: u64,
     schedule: &Schedule,
     receivable_contract_settings: ReceivableContractSettings,
 ) -> u128 {
-    let mut last_update_block = receivable_contract_settings.last_update_block;
-
-    let mut multiplier = 0;
-    // Going serially assuming that schedule is not a big vector
-    for u in schedule.to_owned() {
-        if last_update_block < u.end_block {
-            if current_block > u.end_block {
-                multiplier +=
-                    (u.end_block - last_update_block) as u128 * u.release_per_block.u128();
-                last_update_block = u.end_block;
-            } else {
-                multiplier +=
-                    (current_block - last_update_block) as u128 * u.release_per_block.u128();
-                // last_update_block = current_block;
-                break; // No need to go further up the schedule
+    if total_weight > 0 {
+        let mut last_update_block = receivable_contract_settings.last_update_block;
+        if block > last_update_block {
+            let mut multiplier = 0;
+            // Going serially assuming that schedule is not a big vector
+            for u in schedule.to_owned() {
+                if last_update_block < u.end_block {
+                    if block > u.end_block {
+                        multiplier +=
+                            (u.end_block - last_update_block) as u128 * u.release_per_block.u128();
+                        last_update_block = u.end_block;
+                    } else {
+                        multiplier +=
+                            (block - last_update_block) as u128 * u.release_per_block.u128();
+                        // last_update_block = current_block;
+                        break; // No need to go further up the schedule
+                    }
+                }
             }
-        }
-    }
 
-    (multiplier * receivable_contract_settings.weight as u128) / total_weight as u128
+            (multiplier * receivable_contract_settings.weight as u128) / total_weight as u128
+        } else {
+            0
+        }
+    } else {
+        0
+    }
 }
 
 fn set_schedule<S: Storage, A: Api, Q: Querier>(
@@ -422,6 +429,146 @@ mod tests {
                 );
                 assert_eq!(total_weight, 0);
                 assert_eq!(viewing_key, mock_viewing_key());
+            }
+            _ => panic!("unexpected error"),
+        }
+    }
+
+    #[test]
+    fn test_query_receivable_contract_weight() {
+        let (_init_result, deps) = init_helper();
+        let _env = mock_env(MOCK_ADMIN, &[]);
+
+        // = When provided address has no weight
+        // = * It returns a weight of zero
+        let res = from_binary(
+            &query(
+                &deps,
+                ButtcoinDistributorQueryMsg::ReceivableContractWeight {
+                    addr: HumanAddr::from(MOCK_ADMIN),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::ReceivableContractWeight { weight } => {
+                assert_eq!(weight, 0);
+            }
+            _ => panic!("unexpected error"),
+        }
+
+        // = When provided address has weight
+        // = * It returns the weight for that address
+        // This is tested in #test_set_weights
+    }
+
+    #[test]
+    fn test_query_pending_rewards() {
+        let (_init_result, mut deps) = init_helper();
+        let env = mock_env(MOCK_ADMIN, &[]);
+
+        // = When contract has no weight
+        // = * It returns 0
+        let res = from_binary(
+            &query(
+                &deps,
+                ButtcoinDistributorQueryMsg::Pending {
+                    block: 1,
+                    receivable_contract_address: HumanAddr::from(MOCK_ADMIN),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(0));
+            }
+            _ => panic!("unexpected error"),
+        }
+
+        // = When contract has weight
+        let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
+            weights: vec![WeightInfo {
+                address: HumanAddr::from("sefistakingoptimizeraddress"),
+                hash: "sefistakingoptimizerhash".to_string(),
+                weight: 123,
+            }],
+        };
+        handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg).unwrap();
+
+        // == When there is no schedule
+        // == * It returns 0
+        let res = from_binary(
+            &query(
+                &deps,
+                ButtcoinDistributorQueryMsg::Pending {
+                    block: 1,
+                    receivable_contract_address: HumanAddr::from(MOCK_ADMIN),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(0));
+            }
+            _ => panic!("unexpected error"),
+        }
+
+        // === When there is a schedule
+        let new_release_schedule: Schedule = vec![
+            ScheduleUnit {
+                end_block: env.block.height + 3000,
+                release_per_block: Uint128(3000),
+            },
+            ScheduleUnit {
+                end_block: env.block.height + 6000,
+                release_per_block: Uint128(6000),
+            },
+        ];
+
+        let handle_msg = ButtcoinDistributorHandleMsg::SetSchedule {
+            schedule: new_release_schedule.clone(),
+        };
+        handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg).unwrap();
+        // ==== * When block specified is before weight was added
+        // ==== * It returns 0
+        let res = from_binary(
+            &query(
+                &deps,
+                ButtcoinDistributorQueryMsg::Pending {
+                    block: 1,
+                    receivable_contract_address: HumanAddr::from("sefistakingoptimizeraddress"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(0));
+            }
+            _ => panic!("unexpected error"),
+        }
+        // ==== * When block specified is one after when weight was added
+        // ==== * It returns the correct amount
+        let res = from_binary(
+            &query(
+                &deps,
+                ButtcoinDistributorQueryMsg::Pending {
+                    block: env.block.height + 1,
+                    receivable_contract_address: HumanAddr::from("sefistakingoptimizeraddress"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(3_000));
             }
             _ => panic!("unexpected error"),
         }
