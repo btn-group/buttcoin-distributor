@@ -2,7 +2,7 @@ use crate::authorize::authorize;
 use crate::msg::ButtcoinDistributorResponseStatus::Success;
 use crate::msg::{
     ButtcoinDistributorHandleAnswer, ButtcoinDistributorHandleMsg, ButtcoinDistributorQueryAnswer,
-    ButtcoinDistributorQueryMsg, InitMsg, YieldOptimizerHandleMsg,
+    ButtcoinDistributorQueryMsg, InitMsg, YieldOptimizerReceiveMsg,
 };
 use crate::state::{
     config, config_read, sort_schedule, ReceivableContractSettings, Schedule, State, WeightInfo,
@@ -52,10 +52,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: ButtcoinDistributorHandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        ButtcoinDistributorHandleMsg::ClaimButtcoin {
-            receivable_contract_address,
-            hook,
-        } => claim_buttcoin(deps, env, receivable_contract_address, hook),
+        ButtcoinDistributorHandleMsg::ClaimButtcoin { hook } => claim_buttcoin(deps, env, hook),
         ButtcoinDistributorHandleMsg::SetWeights { weights } => set_weights(deps, env, weights),
         ButtcoinDistributorHandleMsg::SetSchedule { schedule } => set_schedule(deps, env, schedule),
         ButtcoinDistributorHandleMsg::ChangeAdmin { addr } => change_admin(deps, env, addr),
@@ -233,9 +230,9 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
             messages.push(snip20::send_msg(
                 to_update.address.clone(),
                 Uint128(rewards),
-                Some(to_binary(
-                    &YieldOptimizerHandleMsg::ButtcoinClaimedCallback { hook: None },
-                )?),
+                Some(to_binary(&YieldOptimizerReceiveMsg::DepositButtcoin {
+                    hook: None,
+                })?),
                 None,
                 1,
                 state.buttcoin.contract_hash.clone(),
@@ -276,18 +273,17 @@ fn set_weights<S: Storage, A: Api, Q: Querier>(
 fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    receivable_contract_address: HumanAddr,
     hook: Option<Binary>,
 ) -> StdResult<HandleResponse> {
     let state = config_read(&deps.storage).load()?;
 
     let mut rs = TypedStoreMut::attach(&mut deps.storage);
-    let mut receivable_contract_settings = rs
-        .load(receivable_contract_address.0.as_bytes())
-        .unwrap_or(ReceivableContractSettings {
-            weight: 0,
-            last_update_block: env.block.height,
-        });
+    let mut receivable_contract_settings =
+        rs.load(env.message.sender.0.as_bytes())
+            .unwrap_or(ReceivableContractSettings {
+                weight: 0,
+                last_update_block: env.block.height,
+            });
 
     let mut rewards = 0;
     let mut messages = vec![];
@@ -304,17 +300,17 @@ fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
 
         receivable_contract_settings.last_update_block = env.block.height;
         rs.store(
-            receivable_contract_address.0.as_bytes(),
+            env.message.sender.0.as_bytes(),
             &receivable_contract_settings,
         )?;
     }
 
     messages.push(snip20::send_msg(
-        receivable_contract_address.clone(),
+        env.message.sender.clone(),
         Uint128(rewards),
-        Some(to_binary(
-            &YieldOptimizerHandleMsg::ButtcoinClaimedCallback { hook },
-        )?),
+        Some(to_binary(&YieldOptimizerReceiveMsg::DepositButtcoin {
+            hook: hook,
+        })?),
         None,
         1,
         state.buttcoin.contract_hash.clone(),
@@ -323,7 +319,7 @@ fn claim_buttcoin<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages,
-        log: vec![log("claim_buttcoin", receivable_contract_address.0)],
+        log: vec![log("claim_buttcoin", env.message.sender.0)],
         data: Some(to_binary(
             &ButtcoinDistributorHandleAnswer::ClaimButtcoin { status: Success },
         )?),
@@ -353,6 +349,7 @@ fn change_admin<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::msg::YieldOptimizerDepositButtcoinHookMsg;
     use crate::state::{ScheduleUnit, SecretContract};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{from_binary, StdError};
@@ -394,6 +391,13 @@ mod tests {
 
     fn mock_viewing_key() -> String {
         "viewing_key".to_string()
+    }
+
+    fn mock_yield_optimizer_smart_contract() -> SecretContract {
+        SecretContract {
+            address: HumanAddr::from("yieldoptimizersmartcontractaddress"),
+            contract_hash: "yieldoptimizersmartcontracthash".to_string(),
+        }
     }
 
     // === QUERY ===
@@ -491,8 +495,8 @@ mod tests {
         // = When contract has weight
         let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
             weights: vec![WeightInfo {
-                address: HumanAddr::from("sefistakingoptimizeraddress"),
-                hash: "sefistakingoptimizerhash".to_string(),
+                address: mock_yield_optimizer_smart_contract().address,
+                hash: mock_yield_optimizer_smart_contract().contract_hash,
                 weight: 123,
             }],
         };
@@ -541,7 +545,7 @@ mod tests {
                 &deps,
                 ButtcoinDistributorQueryMsg::Pending {
                     block: 1,
-                    receivable_contract_address: HumanAddr::from("sefistakingoptimizeraddress"),
+                    receivable_contract_address: mock_yield_optimizer_smart_contract().address,
                 },
             )
             .unwrap(),
@@ -560,7 +564,7 @@ mod tests {
                 &deps,
                 ButtcoinDistributorQueryMsg::Pending {
                     block: env.block.height + 1,
-                    receivable_contract_address: HumanAddr::from("sefistakingoptimizeraddress"),
+                    receivable_contract_address: mock_yield_optimizer_smart_contract().address,
                 },
             )
             .unwrap(),
@@ -604,6 +608,104 @@ mod tests {
             }
             _ => panic!("unexpected error"),
         }
+    }
+
+    #[test]
+    fn test_handle_claim_buttcoin() {
+        let (_init_result, mut deps) = init_helper();
+        let env = mock_env("admin", &[]);
+
+        // = When there is no schedule
+        // = * It returns a send_msg with 0 amount and a hook
+        let handle_msg = ButtcoinDistributorHandleMsg::ClaimButtcoin { hook: None };
+        let handle_result = handle(
+            &mut deps,
+            mock_env(mock_buttcoin().address, &[]),
+            handle_msg,
+        );
+        let handle_result_unwrapped = handle_result.unwrap();
+        assert_eq!(
+            handle_result_unwrapped.messages,
+            vec![snip20::send_msg(
+                mock_buttcoin().address.clone(),
+                Uint128(0),
+                Some(
+                    to_binary(&YieldOptimizerReceiveMsg::DepositButtcoin { hook: None },).unwrap()
+                ),
+                None,
+                1,
+                mock_buttcoin().contract_hash,
+                mock_buttcoin().address,
+            )
+            .unwrap(),]
+        );
+        assert_eq!(
+            handle_result_unwrapped.log,
+            vec![log("claim_buttcoin", mock_buttcoin().address.0)]
+        );
+        let handle_result_data: ButtcoinDistributorHandleAnswer =
+            from_binary(&handle_result_unwrapped.data.unwrap()).unwrap();
+        assert_eq!(
+            to_binary(&handle_result_data).unwrap(),
+            to_binary(&ButtcoinDistributorHandleAnswer::ClaimButtcoin { status: Success }).unwrap()
+        );
+
+        // = When there is a schedule
+        let new_release_schedule: Schedule = vec![
+            ScheduleUnit {
+                end_block: env.block.height + 3000,
+                release_per_block: Uint128(3000),
+            },
+            ScheduleUnit {
+                end_block: env.block.height + 6000,
+                release_per_block: Uint128(6000),
+            },
+        ];
+        let handle_msg = ButtcoinDistributorHandleMsg::SetSchedule {
+            schedule: new_release_schedule.clone(),
+        };
+        handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg).unwrap();
+
+        // == When the address has weight
+        let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
+            weights: vec![WeightInfo {
+                address: mock_yield_optimizer_smart_contract().address,
+                hash: mock_yield_optimizer_smart_contract().contract_hash,
+                weight: 123,
+            }],
+        };
+        handle(&mut deps, mock_env(MOCK_ADMIN, &[]), handle_msg).unwrap();
+
+        // == * It returns a send_msg with with the right amount, to the correct address with the correct hook msg
+        let mut env = mock_env(mock_yield_optimizer_smart_contract().address, &[]);
+        env.block.height += 1;
+        let hook = YieldOptimizerDepositButtcoinHookMsg::ContinueDepositAfterButtcoinClaimed {
+            depositer: mock_buttcoin().address,
+            incentivized_token_amount: Uint128(789),
+        };
+        let handle_msg = ButtcoinDistributorHandleMsg::ClaimButtcoin {
+            hook: Some(to_binary(&hook).unwrap()),
+        };
+        let handle_result = handle(&mut deps, env, handle_msg);
+        let handle_result_unwrapped = handle_result.unwrap();
+        assert_eq!(
+            handle_result_unwrapped.messages,
+            vec![snip20::send_msg(
+                mock_yield_optimizer_smart_contract().address,
+                Uint128(3000),
+                Some(
+                    to_binary(&YieldOptimizerReceiveMsg::DepositButtcoin {
+                        hook: Some(to_binary(&hook).unwrap())
+                    },)
+                    .unwrap()
+                ),
+                None,
+                1,
+                mock_buttcoin().contract_hash,
+                mock_buttcoin().address,
+            )
+            .unwrap(),]
+        );
     }
 
     #[test]
@@ -665,8 +767,8 @@ mod tests {
 
         let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
             weights: vec![WeightInfo {
-                address: HumanAddr::from("sefistakingoptimizeraddress"),
-                hash: "sefistakingoptimizerhash".to_string(),
+                address: mock_yield_optimizer_smart_contract().address,
+                hash: mock_yield_optimizer_smart_contract().contract_hash,
                 weight: 123,
             }],
         };
@@ -685,7 +787,7 @@ mod tests {
             &query(
                 &deps,
                 ButtcoinDistributorQueryMsg::ReceivableContractWeight {
-                    addr: HumanAddr::from("sefistakingoptimizeraddress"),
+                    addr: mock_yield_optimizer_smart_contract().address,
                 },
             )
             .unwrap(),

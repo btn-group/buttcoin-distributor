@@ -10,9 +10,6 @@
       "properties": {
         "claim_buttcoin": {
           "type": "object",
-          "required": [
-            "receivable_contract_address"
-          ],
           "properties": {
             "hook": {
               "anyOf": [
@@ -23,9 +20,6 @@
                   "type": "null"
                 }
               ]
-            },
-            "receivable_contract_address": {
-              "$ref": "#/definitions/HumanAddr"
             }
           }
         }
