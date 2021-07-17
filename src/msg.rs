@@ -13,19 +13,10 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtcoinDistributorHandleMsg {
-    ClaimButtcoin {
-        receivable_contract_address: HumanAddr,
-        hook: Option<Binary>,
-    },
-    SetWeights {
-        weights: Vec<WeightInfo>,
-    },
-    SetSchedule {
-        schedule: Schedule,
-    },
-    ChangeAdmin {
-        addr: HumanAddr,
-    },
+    ClaimButtcoin { hook: Option<Binary> },
+    SetWeights { weights: Vec<WeightInfo> },
+    SetSchedule { schedule: Schedule },
+    ChangeAdmin { addr: HumanAddr },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
@@ -87,6 +78,19 @@ pub enum ButtcoinDistributorResponseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum YieldOptimizerHandleMsg {
-    ButtcoinClaimedCallback { hook: Option<Binary> },
+pub enum YieldOptimizerDepositButtcoinHookMsg {
+    ContinueDepositAfterButtcoinClaimed {
+        depositer: HumanAddr,
+        incentivized_token_amount: Uint128,
+    },
+    ContinueWithdrawalAfterButtcoinClaimed {
+        withdrawer: HumanAddr,
+        shares_amount: Uint128,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum YieldOptimizerReceiveMsg {
+    DepositButtcoin { hook: Option<Binary> },
 }
