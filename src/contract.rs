@@ -241,116 +241,46 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_query_pending_rewards() {
-    //     let (_init_result, mut deps) = init_helper();
-    //     let env = mock_env(MOCK_SMART_CONTRACT_INITIALIZER, &[]);
+    #[test]
+    fn test_query_pending_rewards() {
+        let (_init_result, deps) = init_helper();
 
-    //     // = When contract has no weight
-    //     // = * It returns 0
-    //     let res = from_binary(
-    //         &query(
-    //             &deps,
-    //             ButtcoinDistributorQueryMsg::Pending {
-    //                 block: 1,
-    //                 receivable_contract_address: HumanAddr::from(MOCK_SMART_CONTRACT_INITIALIZER),
-    //             },
-    //         )
-    //         .unwrap(),
-    //     )
-    //     .unwrap();
-    //     match res {
-    //         ButtcoinDistributorQueryAnswer::Pending { amount } => {
-    //             assert_eq!(amount, Uint128(0));
-    //         }
-    //         _ => panic!("unexpected error"),
-    //     }
+        // = When block specified is smaller or less than the last update block
+        // = * It returns 0
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Pending { block: 1 }).unwrap())
+                .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(0));
+            }
+            _ => panic!("unexpected error"),
+        }
 
-    //     // = When contract has weight
-    //     let handle_msg = ButtcoinDistributorHandleMsg::SetWeights {
-    //         weights: vec![WeightInfo {
-    //             address: mock_yield_optimizer_smart_contract().address,
-    //             hash: mock_yield_optimizer_smart_contract().contract_hash,
-    //             weight: 123,
-    //         }],
-    //     };
-    //     handle(&mut deps, mock_env(MOCK_SMART_CONTRACT_INITIALIZER, &[]), handle_msg).unwrap();
-
-    //     // == When there is no schedule
-    //     // == * It returns 0
-    //     let res = from_binary(
-    //         &query(
-    //             &deps,
-    //             ButtcoinDistributorQueryMsg::Pending {
-    //                 block: 1,
-    //                 receivable_contract_address: HumanAddr::from(MOCK_SMART_CONTRACT_INITIALIZER),
-    //             },
-    //         )
-    //         .unwrap(),
-    //     )
-    //     .unwrap();
-    //     match res {
-    //         ButtcoinDistributorQueryAnswer::Pending { amount } => {
-    //             assert_eq!(amount, Uint128(0));
-    //         }
-    //         _ => panic!("unexpected error"),
-    //     }
-
-    //     // === When there is a schedule
-    //     let new_release_schedule: Schedule = vec![
-    //         ScheduleUnit {
-    //             end_block: env.block.height + 3000,
-    //             release_per_block: Uint128(3000),
-    //         },
-    //         ScheduleUnit {
-    //             end_block: env.block.height + 6000,
-    //             release_per_block: Uint128(6000),
-    //         },
-    //     ];
-
-    //     let handle_msg = ButtcoinDistributorHandleMsg::SetSchedule {
-    //         schedule: new_release_schedule.clone(),
-    //     };
-    //     handle(&mut deps, mock_env(MOCK_SMART_CONTRACT_INITIALIZER, &[]), handle_msg).unwrap();
-    //     // ==== * When block specified is before weight was added
-    //     // ==== * It returns 0
-    //     let res = from_binary(
-    //         &query(
-    //             &deps,
-    //             ButtcoinDistributorQueryMsg::Pending {
-    //                 block: 1,
-    //                 receivable_contract_address: mock_yield_optimizer_smart_contract().address,
-    //             },
-    //         )
-    //         .unwrap(),
-    //     )
-    //     .unwrap();
-    //     match res {
-    //         ButtcoinDistributorQueryAnswer::Pending { amount } => {
-    //             assert_eq!(amount, Uint128(0));
-    //         }
-    //         _ => panic!("unexpected error"),
-    //     }
-    //     // ==== * When block specified is one after when weight was added
-    //     // ==== * It returns the correct amount
-    //     let res = from_binary(
-    //         &query(
-    //             &deps,
-    //             ButtcoinDistributorQueryMsg::Pending {
-    //                 block: env.block.height + 1,
-    //                 receivable_contract_address: mock_yield_optimizer_smart_contract().address,
-    //             },
-    //         )
-    //         .unwrap(),
-    //     )
-    //     .unwrap();
-    //     match res {
-    //         ButtcoinDistributorQueryAnswer::Pending { amount } => {
-    //             assert_eq!(amount, Uint128(3_000));
-    //         }
-    //         _ => panic!("unexpected error"),
-    //     }
-    // }
+        // = When block specified is greater than the last update block
+        // == When block specified is less than or equal to the end_block
+        // == * It returns the correct amount
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Pending { block: 12 }).unwrap())
+                .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(34));
+            }
+            _ => panic!("unexpected error"),
+        }
+        // == When the block specified is more than the end_block
+        // == * It returns the correct amount
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Pending { block: 13 }).unwrap())
+                .unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Pending { amount } => {
+                assert_eq!(amount, Uint128(34));
+            }
+            _ => panic!("unexpected error"),
+        }
+    }
 
     // === HANDLE ===
 
