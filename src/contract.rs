@@ -354,6 +354,40 @@ mod tests {
 
     // === HANDLE ===
 
+    #[test]
+    fn test_handle_set_receivable_smart_contract() {
+        let (_init_result, mut deps) = init_helper();
+        let env = mock_env("user", &[]);
+
+        // = When receivable smart contract is not set
+        // = * It lets user set the receivable smart contract
+        let handle_msg = ButtcoinDistributorHandleMsg::SetReceivableSmartContract {
+            receivable_smart_contract: mock_buttcoin(),
+        };
+        handle(&mut deps, env.clone(), handle_msg).unwrap();
+        let res =
+            from_binary(&query(&deps, ButtcoinDistributorQueryMsg::Config {}).unwrap()).unwrap();
+        match res {
+            ButtcoinDistributorQueryAnswer::Config {
+                receivable_smart_contract,
+                ..
+            } => {
+                assert_eq!(receivable_smart_contract.unwrap(), mock_buttcoin());
+            }
+            _ => panic!("unexpected error"),
+        }
+
+        // = When receivable smart contract is set
+        // = * It does not let user change the receivable smart contract
+        let handle_msg = ButtcoinDistributorHandleMsg::SetReceivableSmartContract {
+            receivable_smart_contract: mock_buttcoin(),
+        };
+        assert_eq!(
+            handle(&mut deps, env, handle_msg).unwrap_err(),
+            StdError::generic_err(format!("Receivable smart contract can only be set once!"))
+        )
+    }
+
     // #[test]
     // fn test_handle_claim_buttcoin() {
     //     let (_init_result, mut deps) = init_helper();
