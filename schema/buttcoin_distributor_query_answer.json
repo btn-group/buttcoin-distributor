@@ -11,53 +11,47 @@
         "config": {
           "type": "object",
           "required": [
-            "admin",
             "buttcoin",
-            "schedule",
-            "total_weight",
+            "end_block",
+            "last_update_block",
+            "release_per_block",
+            "starting_block",
             "viewing_key"
           ],
           "properties": {
-            "admin": {
-              "$ref": "#/definitions/HumanAddr"
-            },
             "buttcoin": {
               "$ref": "#/definitions/SecretContract"
             },
-            "schedule": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/ScheduleUnit"
-              }
+            "end_block": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             },
-            "total_weight": {
+            "last_update_block": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "receivable_smart_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/SecretContract"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "release_per_block": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "starting_block": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
             },
             "viewing_key": {
               "type": "string"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "receivable_contract_weight"
-      ],
-      "properties": {
-        "receivable_contract_weight": {
-          "type": "object",
-          "required": [
-            "weight"
-          ],
-          "properties": {
-            "weight": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }
@@ -86,23 +80,6 @@
   "definitions": {
     "HumanAddr": {
       "type": "string"
-    },
-    "ScheduleUnit": {
-      "type": "object",
-      "required": [
-        "end_block",
-        "release_per_block"
-      ],
-      "properties": {
-        "end_block": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "release_per_block": {
-          "$ref": "#/definitions/Uint128"
-        }
-      }
     },
     "SecretContract": {
       "type": "object",

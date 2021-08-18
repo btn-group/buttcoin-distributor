@@ -1,4 +1,4 @@
-use crate::state::{Schedule, SecretContract, WeightInfo};
+use crate::state::SecretContract;
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,32 +6,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub buttcoin: SecretContract,
-    pub release_schedule: Schedule,
+    pub end_block: u64,
+    pub starting_block: u64,
+    pub release_per_block: Uint128,
     pub viewing_key: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtcoinDistributorHandleMsg {
-    ClaimButtcoin { hook: Option<Binary> },
-    SetWeights { weights: Vec<WeightInfo> },
-    SetSchedule { schedule: Schedule },
-    ChangeAdmin { addr: HumanAddr },
+    ClaimButtcoin {
+        hook: Option<Binary>,
+    },
+    SetReceivableSmartContract {
+        receivable_smart_contract: SecretContract,
+    },
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtcoinDistributorHandleAnswer {
-    ChangeAdmin {
-        status: ButtcoinDistributorResponseStatus,
-    },
     ClaimButtcoin {
         status: ButtcoinDistributorResponseStatus,
     },
-    SetWeights {
-        status: ButtcoinDistributorResponseStatus,
-    },
-    SetSchedule {
+    SetReceivableSmartContract {
         status: ButtcoinDistributorResponseStatus,
     },
 }
@@ -40,27 +38,20 @@ pub enum ButtcoinDistributorHandleAnswer {
 #[serde(rename_all = "snake_case")]
 pub enum ButtcoinDistributorQueryMsg {
     Config {},
-    ReceivableContractWeight {
-        addr: HumanAddr,
-    },
-    Pending {
-        receivable_contract_address: HumanAddr,
-        block: u64,
-    },
+    Pending { block: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ButtcoinDistributorQueryAnswer {
     Config {
-        admin: HumanAddr,
         buttcoin: SecretContract,
-        schedule: Schedule,
-        total_weight: u64,
+        end_block: u64,
+        last_update_block: u64,
+        receivable_smart_contract: Option<SecretContract>,
+        release_per_block: Uint128,
+        starting_block: u64,
         viewing_key: String,
-    },
-    ReceivableContractWeight {
-        weight: u64,
     },
     Pending {
         amount: Uint128,

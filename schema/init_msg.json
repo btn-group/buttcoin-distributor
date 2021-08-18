@@ -4,18 +4,27 @@
   "type": "object",
   "required": [
     "buttcoin",
-    "release_schedule",
+    "end_block",
+    "release_per_block",
+    "starting_block",
     "viewing_key"
   ],
   "properties": {
     "buttcoin": {
       "$ref": "#/definitions/SecretContract"
     },
-    "release_schedule": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/ScheduleUnit"
-      }
+    "end_block": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "release_per_block": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "starting_block": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "viewing_key": {
       "type": "string"
@@ -24,23 +33,6 @@
   "definitions": {
     "HumanAddr": {
       "type": "string"
-    },
-    "ScheduleUnit": {
-      "type": "object",
-      "required": [
-        "end_block",
-        "release_per_block"
-      ],
-      "properties": {
-        "end_block": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "release_per_block": {
-          "$ref": "#/definitions/Uint128"
-        }
-      }
     },
     "SecretContract": {
       "type": "object",
