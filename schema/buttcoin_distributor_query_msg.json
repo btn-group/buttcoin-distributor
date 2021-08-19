@@ -16,51 +16,23 @@
     {
       "type": "object",
       "required": [
-        "receivable_contract_weight"
-      ],
-      "properties": {
-        "receivable_contract_weight": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "pending"
       ],
       "properties": {
         "pending": {
           "type": "object",
           "required": [
-            "block",
-            "receivable_contract_address"
+            "block"
           ],
           "properties": {
             "block": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
-            },
-            "receivable_contract_address": {
-              "$ref": "#/definitions/HumanAddr"
             }
           }
         }
       }
     }
-  ],
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    }
-  }
+  ]
 }

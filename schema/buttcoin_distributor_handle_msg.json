@@ -28,61 +28,17 @@
     {
       "type": "object",
       "required": [
-        "set_weights"
+        "set_receivable_smart_contract"
       ],
       "properties": {
-        "set_weights": {
+        "set_receivable_smart_contract": {
           "type": "object",
           "required": [
-            "weights"
+            "receivable_smart_contract"
           ],
           "properties": {
-            "weights": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/WeightInfo"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "set_schedule"
-      ],
-      "properties": {
-        "set_schedule": {
-          "type": "object",
-          "required": [
-            "schedule"
-          ],
-          "properties": {
-            "schedule": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/ScheduleUnit"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "change_admin"
-      ],
-      "properties": {
-        "change_admin": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
+            "receivable_smart_contract": {
+              "$ref": "#/definitions/SecretContract"
             }
           }
         }
@@ -97,44 +53,18 @@
     "HumanAddr": {
       "type": "string"
     },
-    "ScheduleUnit": {
-      "type": "object",
-      "required": [
-        "end_block",
-        "release_per_block"
-      ],
-      "properties": {
-        "end_block": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "release_per_block": {
-          "$ref": "#/definitions/Uint128"
-        }
-      }
-    },
-    "Uint128": {
-      "type": "string"
-    },
-    "WeightInfo": {
+    "SecretContract": {
       "type": "object",
       "required": [
         "address",
-        "hash",
-        "weight"
+        "contract_hash"
       ],
       "properties": {
         "address": {
           "$ref": "#/definitions/HumanAddr"
         },
-        "hash": {
+        "contract_hash": {
           "type": "string"
-        },
-        "weight": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
         }
       }
     }
