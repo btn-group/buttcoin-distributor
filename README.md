@@ -27,9 +27,7 @@ The point of blockchain is to be decentralized and trustless. One scam I can thi
 
 We think privacy is important, but it should be privacy for individuals and transparency for organizations.
 
-## Regarding privacy
-Testing locally
-
+## Testing locally
 ```
 // 1. Run chain locally
 docker run -it --rm -p 26657:26657 -p 26656:26656 -p 1337:1337 -v $(pwd):/root/code --name secretdev enigmampc/secret-network-sw-dev
