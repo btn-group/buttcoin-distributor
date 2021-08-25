@@ -39,13 +39,13 @@ docker exec -it secretdev /bin/bash
 cd code
 
 // 4. Store the contract (Specify your keyring. Mine is named test etc.)
-secretcli tx compute store buttcoin.wasm.gz --from a --gas 3000000 -y --keyring-backend test
+secretcli tx compute store buttcoin-distributor.wasm.gz --from a --gas 3000000 -y --keyring-backend test
 
 // 5. Get the contract's id
 secretcli query compute list-code
 
 // 6. Init Buttcoin 
-CODE_ID=1
-INIT='{"name": "Buttcoin", "symbol": "BUTT", "decimals": 6, "initial_balances": [{"address": "secret1tgdqsgld9js5susma8p6674eag47q6ujyza6y6", "amount": "100000000000000"}], "prng_seed": "testing"}'
-secretcli tx compute instantiate $CODE_ID "$INIT" --from a --label "Buttcoin" -y --keyring-backend test --gas 3000000 --gas-prices=3.0uscrt
+CODE_ID=2
+INIT='{"buttcoin": {"address": "secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg", "contract_hash": "4CD7F64B9ADE65200E595216265932A0C7689C4804BE7B4A5F8CEBED250BF7EA"}, "release_schedule": [{"end_block": 3333333333, "release_per_block": "1000000"}], "viewing_key": "testing"}'
+secretcli tx compute instantiate $CODE_ID "$INIT" --from a --label "buttcoin-distributor" -y --keyring-backend test --gas 3000000 --gas-prices=3.0uscrt
 ```
