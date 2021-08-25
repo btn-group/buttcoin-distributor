@@ -26,3 +26,28 @@ We thought about a centralized option where we only hold the viewing keys and sh
 The point of blockchain is to be decentralized and trustless. One scam I can think of off the top of my head would be to add a smart contract but only expose that to ourselves. That way we can accrue Buttcoin for ourselves and dump on the market.
 
 We think privacy is important, but it should be privacy for individuals and transparency for organizations.
+
+## Regarding privacy
+Testing locally
+
+```
+// 1. Run chain locally
+docker run -it --rm -p 26657:26657 -p 26656:26656 -p 1337:1337 -v $(pwd):/root/code --name secretdev enigmampc/secret-network-sw-dev
+
+// 2. Access container via separate terminal window
+docker exec -it secretdev /bin/bash
+
+// 3. cd into code folder
+cd code
+
+// 4. Store the contract (Specify your keyring. Mine is named test etc.)
+secretcli tx compute store buttcoin.wasm.gz --from a --gas 3000000 -y --keyring-backend test
+
+// 5. Get the contract's id
+secretcli query compute list-code
+
+// 6. Init Buttcoin 
+CODE_ID=1
+INIT='{"name": "Buttcoin", "symbol": "BUTT", "decimals": 6, "initial_balances": [{"address": "secret1tgdqsgld9js5susma8p6674eag47q6ujyza6y6", "amount": "100000000000000"}], "prng_seed": "testing"}'
+secretcli tx compute instantiate $CODE_ID "$INIT" --from a --label "Buttcoin" -y --keyring-backend test --gas 3000000 --gas-prices=3.0uscrt
+```
