@@ -70,13 +70,23 @@ pub enum ButtcoinDistributorResponseStatus {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum YieldOptimizerDepositButtcoinHookMsg {
+    AddLiquidityToPairContract {},
+    ProcessRewards {},
     ContinueDepositAfterButtcoinClaimed {
+        depositer: HumanAddr,
+        incentivized_token_amount: Uint128,
+    },
+    ContinueDepositAfterRewardsProcessed {
         depositer: HumanAddr,
         incentivized_token_amount: Uint128,
     },
     ContinueWithdrawalAfterButtcoinClaimed {
         withdrawer: HumanAddr,
         shares_amount: Uint128,
+    },
+    ContinueWithdrawalAfterRewardsProcessed {
+        withdrawer: HumanAddr,
+        withdrawn_amount: Uint128,
     },
 }
 
